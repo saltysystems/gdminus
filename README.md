@@ -15,4 +15,6 @@ A lexer has been implemented using [leex](https://github.com/rvirding/leex) and 
 
 Build
 -----
-    $ rebar3 compile
+    $ rebar3 shell
+    1> leex:file("src/gdminus_scan").
+    2> yecc:file("src/gdminus_parse").
