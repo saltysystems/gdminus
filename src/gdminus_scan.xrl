@@ -7,7 +7,6 @@ INDENT = \n[\t]*
 LB = \n|\r\n|\r
 NAME = [A-Za-z_][A-Za-z0-9_]*
 COMP = <|>|==|<=|>=|!=
-SINGLE_STRING = \'(\\.|\\\n|[^'\\])*\'
 COMMENT = #.*
 
 Rules.
@@ -33,8 +32,8 @@ Rules.
 \]          : {token, {']', TokenLine}}.
 \{			: {token, {'{', TokenLine}}.
 \}			: {token, {'}', TokenLine}}.
-{WS}        : skip_token.
 {INDENT}    : evaluate_indent_level(TokenChars, TokenLine).
+{WS}        : skip_token.
 {COMMENT}   : skip_token. % comments
 %{LB}       : skip_token.
 
@@ -67,7 +66,7 @@ scope_token(PrevLevel, CurLevel, Line) when PrevLevel > CurLevel ->
 	{token, {dedent, HowMany, Line}};
 % If the current level > the previous level, emit an indent token
 scope_token(PrevLevel, CurLevel, Line) when CurLevel > PrevLevel ->
-	{token, {indent, Line}};
+	{token, {indent, Line + 1}};
 scope_token(PrevLevel, CurLevel, _Line) when CurLevel =:= PrevLevel ->
 	skip_token.
 
@@ -83,6 +82,19 @@ name_token(Cs, L) ->
 
 name_string(Name) ->
     binary_to_atom(Name, latin1).
+
+%type_token(Cs, L) ->
+%    case catch {ok,list_to_binary(Cs)} of
+%    {ok,Type} ->
+%        case is_type(Type) of
+%        true -> {token,{type_string(Type),L}};
+%        false -> {token,{type,L,binary:bin_to_list(Type)}}
+%        end;
+%    _ -> {error,"illegal type"}
+%    end.
+%
+%type_string(Type) ->
+%    binary_to_atom(Type, latin1).
 
 string_token(Cs0, Len, L) ->
     Cs1 = string:substr(Cs0, 2, Len - 2),   %Strip quotes
@@ -131,3 +143,27 @@ is_keyword(<<"yield">>) -> true;
 is_keyword(<<"NaN">>) -> true;
 
 is_keyword(_) -> false.
+
+% Builtin types
+%is_type(<<"null">>) -> true;
+%is_type(<<"int">>) -> true;
+%is_type(<<"float">>) -> true;
+%is_type(<<"bool">>) -> true;
+%is_type(<<"String">>) -> true;
+%is_type(<<"Vector2">>) -> true;
+%is_type(<<"Rect2">>) -> true;
+%is_type(<<"Vector3">>) -> true;
+%is_type(<<"Transform2D">>) -> true;
+%is_type(<<"Plane">>) -> true;
+%is_type(<<"Quat">>) -> true;
+%is_type(<<"AABB">>) -> true;
+%is_type(<<"Basis">>) -> true;
+%is_type(<<"Transform">>) -> true;
+%is_type(<<"Color">>) -> true;
+%is_type(<<"NodePath">>) -> true;
+%is_type(<<"RID">>) -> true;
+%is_type(<<"Object">>) -> true;
+%is_type(<<"Array">>) -> true;
+%is_type(<<"Dictionary">>) -> true;
+% 
+%is_type(_) -> false.
