@@ -2,7 +2,7 @@ Definitions.
 
 NUMBER = [0-9]+
 WS = [\s]+
-INDENT = \n[\t]*
+INDENT = \n[\s]*
 %INDENT = \A\t* % doesnt work
 LB = \n|\r\n|\r
 NAME = [A-Za-z_][A-Za-z0-9_]*
@@ -35,39 +35,83 @@ Rules.
 {INDENT}    : evaluate_indent_level(TokenChars, TokenLine).
 {WS}        : skip_token.
 {COMMENT}   : skip_token. % comments
-%{LB}       : skip_token.
+{LB}       : skip_token.
 
 Erlang code.
 -export([is_keyword/1]).
+-export([normalize/1]).
+
+% The gdminus scanner will produce multiple levels of indentation per token,
+% this function will flatten the results such that multiple indent or dedent
+% tokens are printed per script line
+normalize(List) ->
+	% The resulting list will be built backwards and deep
+	lists:reverse(lists:flatten(normalize(List, []))).
+
+normalize([], Acc) ->
+	Acc;
+normalize([{Type, Line, Number} | T ], Acc) when Type == indent; Type == dedent ->
+	io:format("Found an indent or dedent token~n"),
+	Result = explode({Type, Line, Number}),
+	io:format("Exploded tokens, result: ~p~n", [Result]),
+	% Attach the resulting head to the accumulator 
+	normalize(T, [ Result | Acc ]);
+normalize([H|T], Acc) ->
+	% Do nothing with lines that don't match indent or dedent
+	io:format("Doing nothing with line ~p~n", [H]),
+	normalize(T, [ H |Acc]).
+
+
+explode({Type, Line, Number}) ->
+	explode({Type, Line, Number}, []).
+
+explode({_Type, _Line, Number}, Acc) when Number == 0 ->
+	Acc;
+explode({Type, Line, Number}, Acc) ->
+	NewAcc = [ {Type, Line} | Acc ],
+	explode({Type, Line, Number - 1}, NewAcc).
+	
+	
+	
 
 evaluate_indent_level(Chars, Line) ->
 	% Represents the indentation level. The regex match looks for a newline
-	% followed by any number of \t chars
-	CurLevel = length(Chars) - 1,
+	% followed by any number of \s chars
+	Level = length(Chars) - 1,
+    % the first time we encounter indentation greater than 0, we record its
+    % length to set the tab stop
+    TabStop = 
+        case get(tabstop) of
+            undefined -> 
+                case Level > 0 of
+                    true ->
+                        put(tabstop, Level),
+                        Level;
+                    false -> 1 %?
+                end;
+            T ->
+                T
+        end,
 
-	% Abuse the process dictionary to get the previous indentation level
-	PrevLevel = 
-		case get(indent) of 
-			% process dictionary is empty, assume its 0
-			undefined -> 0;
-			L -> L
-		end,
+    CurLevel = Level div TabStop,
 
-	% Put the current indent level in the process dictionary, called purely
-	% for its side effects.
-	put(indent, CurLevel),
+	% Compare the existing level to this one
+	PrevLevel = get(indent),
+	% Update with the current level
+    put(indent, CurLevel),
 
-	% Return the indentation or dedent
 	scope_token(PrevLevel, CurLevel, Line).
 	
 % If the previous level > current level, emit one or more dedent tokens
 scope_token(PrevLevel, CurLevel, Line) when PrevLevel > CurLevel ->
 	HowMany = PrevLevel - CurLevel,
-	{token, {dedent, HowMany, Line}};
+	% Put the dedents on the previous line
+	{token, {dedent, Line, HowMany}}; 
 % If the current level > the previous level, emit an indent token
-scope_token(PrevLevel, CurLevel, Line) when CurLevel > PrevLevel ->
-	{token, {indent, Line + 1}};
-scope_token(PrevLevel, CurLevel, _Line) when CurLevel =:= PrevLevel ->
+scope_token(_PrevLevel, CurLevel, Line) when CurLevel > 0 ->
+	% Always emit how many levels deep we are
+	{token, {indent, Line + 1, CurLevel}};
+scope_token(_PrevLevel, CurLevel, _Line) when CurLevel =:= 0 ->
 	skip_token.
 
 name_token(Cs, L) ->
