@@ -113,9 +113,9 @@ scope_token(PrevLevel, CurLevel, Line) when PrevLevel > CurLevel ->
 	% Put the dedents on the previous line
 	{token, {dedent, Line, HowMany}}; 
 % If the current level > the previous level, emit an indent token
-scope_token(_PrevLevel, CurLevel, Line) when CurLevel > 0 ->
-	% Always emit how many levels deep we are
-	{token, {indent, Line + 1, CurLevel}};
+scope_token(PrevLevel, CurLevel, Line) when CurLevel > 0 ->
+	HowMany = CurLevel - PrevLevel,
+	{token, {indent, Line + 1, HowMany}};
 scope_token(_PrevLevel, CurLevel, _Line) when CurLevel =:= 0 ->
 	skip_token.
 
