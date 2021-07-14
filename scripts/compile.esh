@@ -1,0 +1,5 @@
+#!/usr/bin/env escript
+
+main(_) ->
+    leex:file("../src/gdminus_scan.xrl"),
+    yecc:file("../src/gdminus_parse.yrl").
