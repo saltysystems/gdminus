@@ -1,23 +1,13 @@
-We are not properly printing dedent tokens when a line is indented and then indented again.
+Tab-based parsing isn't working, I _think_ because we're pattern matching
+against the tab tokens after pattern matching against the space tokens.
 
-i.e.,.
+So INDENT_S matches before INDENT_T. I think instead we'll need to do
 
-if foo == bar:
-  if zip == zap:
-    blah
-blarg
+INDENT = \n[\t]*|\n[\s]*
 
-becomes
+And then process it in a single function that aborts if it's seen one
+indentation token indicator and not the other.
 
-if, foo, ==, bar, :
-indent, if, zip, ==, zap, :
-indent, indent, blah, dedent, dedent
-blarg
-
-
-I think it should instead be:
-
-if, foo, ==, bar, :
-indent, if, zip, ==, zap, :, dedent
-indent, indent, blah, dedent, dedent
-blarg
+I guess we can abuse the process dictionary to check for "token_type" where it
+can be set to space or tab or undefined. If it sees space and gets a tab,
+explode, and vice versa. Need to be careful around empty newlines, possibly.
