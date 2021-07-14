@@ -51,14 +51,14 @@ normalize(List) ->
 normalize([], Acc) ->
 	Acc;
 normalize([{Type, Line, Number} | T ], Acc) when Type == indent; Type == dedent ->
-	io:format("Found an indent or dedent token~n"),
+	%io:format("Found an indent or dedent token~n"),
 	Result = explode({Type, Line, Number}),
-	io:format("Exploded tokens, result: ~p~n", [Result]),
+	%io:format("Exploded tokens, result: ~p~n", [Result]),
 	% Attach the resulting head to the accumulator 
 	normalize(T, [ Result | Acc ]);
 normalize([H|T], Acc) ->
 	% Do nothing with lines that don't match indent or dedent
-	io:format("Doing nothing with line ~p~n", [H]),
+	%io:format("Doing nothing with line ~p~n", [H]),
 	normalize(T, [ H |Acc]).
 
 
@@ -96,7 +96,12 @@ evaluate_indent_level(Chars, Line) ->
     CurLevel = Level div TabStop,
 
 	% Compare the existing level to this one
-	PrevLevel = get(indent),
+	PrevLevel = 
+		case get(indent) of
+			undefined ->
+				0;
+			L -> L
+		end,
 	% Update with the current level
     put(indent, CurLevel),
 
