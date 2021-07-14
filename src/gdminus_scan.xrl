@@ -2,7 +2,8 @@ Definitions.
 
 NUMBER = [0-9]+
 WS = [\s]+
-INDENT = \n[\s]*
+INDENT_S = \n[\s]*
+INDENT_T = \n[\t]*
 %INDENT = \A\t* % doesnt work
 LB = \n|\r\n|\r
 NAME = [A-Za-z_][A-Za-z0-9_]*
@@ -32,7 +33,8 @@ Rules.
 \]          : {token, {']', TokenLine}}.
 \{			: {token, {'{', TokenLine}}.
 \}			: {token, {'}', TokenLine}}.
-{INDENT}    : evaluate_indent_level(TokenChars, TokenLine).
+{INDENT_S}  : evaluate_indent_level(TokenChars, TokenLine, spaces).
+{INDENT_T}  : evaluate_indent_level(TokenChars, TokenLine, tabs).
 {WS}        : skip_token.
 {COMMENT}   : skip_token. % comments
 {LB}       : skip_token.
@@ -74,18 +76,24 @@ explode({Type, Line, Number}, Acc) ->
 	
 	
 
-evaluate_indent_level(Chars, Line) ->
+evaluate_indent_level(Chars, Line, spaces) ->
+    evaluate_indent_level_space(Chars,Line);
+evaluate_indent_level(Chars, Line, tabs) ->
+    evaluate_indent_level_tab(Chars,Line).
+
+
+evaluate_indent_level_space(Chars, Line) ->
 	% Represents the indentation level. The regex match looks for a newline
 	% followed by any number of \s chars
 	Level = length(Chars) - 1,
     % the first time we encounter indentation greater than 0, we record its
     % length to set the tab stop
     TabStop = 
-        case get(tabstop) of
+        case get(tabstop_s) of
             undefined -> 
                 case Level > 0 of
                     true ->
-                        put(tabstop, Level),
+                        put(tabstop_s, Level),
                         Level;
                     false -> 1 %?
                 end;
@@ -97,16 +105,36 @@ evaluate_indent_level(Chars, Line) ->
 
 	% Compare the existing level to this one
 	PrevLevel = 
-		case get(indent) of
+		case get(indent_s) of
 			undefined ->
 				0;
 			L -> L
 		end,
 	% Update with the current level
-    put(indent, CurLevel),
+    put(indent_s, CurLevel),
 
 	scope_token(PrevLevel, CurLevel, Line).
-	
+
+evaluate_indent_level_tab(Chars, Line) ->
+	% Represents the indentation level. The regex match looks for a newline
+	% followed by any number of \t chars
+	CurLevel = length(Chars) - 1,
+    io:format("Found ~p on line ~p~n", [Chars, Line+1]),
+
+	% Compare the existing level to this one
+	PrevLevel = 
+		case get(tablev) of
+			undefined ->
+				0;
+			L -> L
+		end,
+	% Update with the current level
+    io:format("Previous level is ~p~n", [PrevLevel]),
+    put(tablev, CurLevel),
+
+    io:format("Prev: ~p, Cur: ~p, Line: ~p~n", [PrevLevel,CurLevel, Line+1]),
+	scope_token(PrevLevel, CurLevel, Line).
+
 % If the previous level > current level, emit one or more dedent tokens
 scope_token(PrevLevel, CurLevel, Line) when PrevLevel > CurLevel ->
 	HowMany = PrevLevel - CurLevel,
