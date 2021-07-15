@@ -1,13 +1,2 @@
-Tab-based parsing isn't working, I _think_ because we're pattern matching
-against the tab tokens after pattern matching against the space tokens.
-
-So INDENT_S matches before INDENT_T. I think instead we'll need to do
-
-INDENT = \n[\t]*|\n[\s]*
-
-And then process it in a single function that aborts if it's seen one
-indentation token indicator and not the other.
-
-I guess we can abuse the process dictionary to check for "token_type" where it
-can be set to space or tab or undefined. If it sees space and gets a tab,
-explode, and vice versa. Need to be careful around empty newlines, possibly.
+After we use & abuse the process dictionary, we need to make sure that the
+lexxer runs in a separate, new process.
