@@ -1,0 +1,17 @@
+var foo
+var bar = baz
+
+var dict = {key:value, 1:2}
+
+var array = [1,2,"three"]
+
+func main(arg): 
+    if arg == "Hello":
+        print("Right back at ya!")
+    else:
+        arg = "GDMinus"
+        for i in range(1,5):
+            greeter(arg, i)
+
+func greeter(arg, i):
+    print("Hello " + arg + str(i) + "!")
