@@ -2,9 +2,7 @@ Definitions.
 
 NUMBER = [0-9]+
 WS = [\s]+
-INDENT_S = \n[\s]*
-INDENT_T = \n[\t]*
-%INDENT = \A\t* % doesnt work
+INDENT = \n[\s]*|\n[\t]*
 LB = \n|\r\n|\r
 NAME = [A-Za-z_][A-Za-z0-9_]*
 COMP = <|>|==|<=|>=|!=
@@ -33,8 +31,7 @@ Rules.
 \]          : {token, {']', TokenLine}}.
 \{			: {token, {'{', TokenLine}}.
 \}			: {token, {'}', TokenLine}}.
-{INDENT_S}  : evaluate_indent_level(TokenChars, TokenLine, spaces).
-{INDENT_T}  : evaluate_indent_level(TokenChars, TokenLine, tabs).
+{INDENT}    : evaluate_indent_level(TokenChars, TokenLine).
 {WS}        : skip_token.
 {COMMENT}   : skip_token. % comments
 {LB}       : skip_token.
@@ -74,13 +71,33 @@ explode({Type, Line, Number}, Acc) ->
 	explode({Type, Line, Number - 1}, NewAcc).
 	
 	
+tab_or_space([Head|Rest]) when Head == '\n' ->
+	tab_or_space(Rest);
+tab_or_space([Head|_Rest]) when Head == '\t' ->
+	tab;
+tab_or_space(_) -> 
+	space.
 	
 
-evaluate_indent_level(Chars, Line, spaces) ->
-    evaluate_indent_level_space(Chars,Line);
-evaluate_indent_level(Chars, Line, tabs) ->
-    evaluate_indent_level_tab(Chars,Line).
-
+evaluate_indent_level(Chars, Line) ->
+	% Yet more abuse of the process dictionary
+	% We should set the mode the first time we encounter a indent token
+	case get(mode) of
+		undefined ->
+			% Remove the initial newline
+			case tab_or_space(Chars) of
+				tab ->
+					put(mode,tab),
+					evaluate_indent_level_tab(Chars, Line);
+				space ->
+					put(mode,space),
+					evaluate_indent_level_space(Chars, Line)
+			end;
+		space ->
+			evaluate_indent_level_space(Chars,Line);
+		tab ->
+			evaluate_indent_level_tab(Chars, Line)
+	end.
 
 evaluate_indent_level_space(Chars, Line) ->
 	% Represents the indentation level. The regex match looks for a newline
