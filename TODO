@@ -1,2 +1,6 @@
+Not sure what to do with if/else statements. I can parse a if.. not sure how to handle else, elif, etc..
+--
+Not quite parsing indents/dedents correctly. 
+--
 After we use & abuse the process dictionary, we need to make sure that the
 lexxer runs in a separate, new process.
