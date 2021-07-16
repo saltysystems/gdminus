@@ -1,6 +1,6 @@
 Nonterminals expr Script Statement Statements
 varDeclStmt constDecl enumDecl inheritance className keyValue array
-functioncall constructorDecl
+functioncall constructorDecl ifStmt
 array_items kv_items enum_list uminus unop arglist exprlist
 .
 
@@ -11,7 +11,7 @@ number name string
 % Logic
 'false' 'true' '!' 'not'
 % Keywords
-var extends class_name const enum func indent dedent
+var extends class_name const enum func indent dedent if else
 % Other symbols
 '.' ',' '[' ']' ':' '{' '}'
 % Types
@@ -19,6 +19,8 @@ var extends class_name const enum func indent dedent
 %String Vector2 Rect2 Vector3 Transform2D Plane Quat 
 %AABB Basis Transform Color NodePath RID Object Array 
 %Dictionary 
+%%% Other
+comparison
 .
 
 Rootsymbol Script.
@@ -33,9 +35,9 @@ Unary 1000 uminus.
 
 Script -> Statements : '$1'.
 
-Statements -> indent Statement : [{indent, '$2'}].
+Statements -> indent Statement dedent : [{indent, '$2', 'dedent'}].
 Statements -> Statement : ['$1'].
-Statements -> indent Statement Statements : [{indent, '$2'}] ++ '$3'.
+Statements -> indent Statement Statements dedent : [{indent, '$2', 'dedent'}] ++ '$3'.
 Statements -> Statement Statements : ['$1'] ++ '$2'.
 
 Statement -> varDeclStmt     : '$1'.
@@ -45,7 +47,7 @@ Statement -> constructorDecl : '$1'.
 Statement -> inheritance     : '$1'.
 Statement -> className       : '$1'.
 Statement -> expr            : '$1'.
-%Statement -> ifStmt         : '$1'.
+Statement -> ifStmt          : '$1'.
 %Statement -> matchStmt      : '$1'.
 %Statement -> assignmentStmt : '$1'.
 %Unsupported: assert, yield, preload
@@ -112,3 +114,6 @@ className -> class_name name : {class_name, '$2'}.
 %functioncall -> name arglist : {func_call, '$2'}.
 
 constructorDecl -> 'func' name arglist ':' : {func_def, '$2', '$3'}.
+
+ifStmt -> 'if' name comparison expr ':' : {ifStmt, '$3', '$2', '$4'}.
+ifStmt -> 'else' ':' : {ifStmt, else}.
