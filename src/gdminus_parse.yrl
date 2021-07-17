@@ -1,7 +1,12 @@
-Nonterminals expr Script Statement Statements
+Expect 2.
+
+Nonterminals 
+expr Script Statement Statements
 varDeclStmt constDecl enumDecl inheritance className keyValue array
-functioncall constructorDecl ifStmt
+functioncall constructorDecl ifStmt assignmentStmt
+forStmt flowStmt
 array_items kv_items enum_list uminus unop arglist exprlist
+Block
 .
 
 Terminals 
@@ -9,9 +14,10 @@ number name string
 % Operators
 '+' '-' '*' '/' '(' ')' '='
 % Logic
-'false' 'true' '!' 'not'
+'false' 'true' '!' 'not' 'is' '==' '>=' '<=' '!=' '>' '<'
 % Keywords
-var extends class_name const enum func indent dedent if else
+var extends class_name const enum func indent dedent if else elif
+for in return
 % Other symbols
 '.' ',' '[' ']' ':' '{' '}'
 % Types
@@ -20,27 +26,23 @@ var extends class_name const enum func indent dedent if else
 %AABB Basis Transform Color NodePath RID Object Array 
 %Dictionary 
 %%% Other
-comparison
 .
 
 Rootsymbol Script.
 
 %TODO
 Right 100 '='.
-Left 300 '+'.
-Left 300 '-'.
-Left 400 '*'.
-Left 400 '/'.
+Left 300 '+' '-'.
+Left 400 '*' '/'.
+Left 500 'is' '==' '<' '>' '<=' '>=' '!='.
 Unary 1000 uminus.
 
 Script -> Statements : '$1'.
 
-IStatement -> 
+Statements -> Statement : ['$1'].
+Statements -> Statements Statement : '$1' ++ ['$2'].
 
-Statements -> Statement: '$1'.
-Statements -> Statements Statement : ['$1'] ++ '$2'.
-
-Block -> indent Statements dedent : '$1'.
+Block -> indent Statements dedent : '$2'.
 
 Statement -> varDeclStmt     : '$1'.
 Statement -> constDecl       : '$1'.
@@ -51,22 +53,31 @@ Statement -> className       : '$1'.
 Statement -> expr            : '$1'.
 Statement -> ifStmt          : '$1'.
 %Statement -> matchStmt      : '$1'.
-%Statement -> assignmentStmt : '$1'.
+Statement -> flowStmt        : '$1'.
+Statement -> assignmentStmt  : '$1'.
+Statement -> forStmt         : '$1'.
 %Unsupported: assert, yield, preload
 
 expr -> keyValue : '$1'.
 expr -> array : '$1'.
 expr -> string : '$1'.
 expr -> name : '$1'.
-%expr -> functioncall : '$1'.
+expr -> functioncall : '$1'.
 expr -> 'true' : '$1'.
 expr -> 'false' : '$1'.
 expr -> number : '$1'.
 expr -> '(' expr ')' : '$2'.
-expr -> expr '+' expr : {add, '$1', '$3'}.
-expr -> expr '-' expr : {subtract, '$1', '$3'}.
-expr -> expr '*' expr : {multiply, '$1', '$3'}.
-expr -> expr '/' expr : {divde, '$1', '$3'}.
+expr -> expr '+' expr  : {'+', '$1', '$3'}.
+expr -> expr '-' expr  : {'-', '$1', '$3'}.
+expr -> expr '*' expr  : {'*', '$1', '$3'}.
+expr -> expr '/' expr  : {'/', '$1', '$3'}.
+expr -> expr '==' expr : {'==', '$1', '$3'}.
+expr -> expr is expr : {'==', '$1', '$3'}.
+expr -> expr '!=' expr : {'!=', '$1', '$3'}.
+expr -> expr '>=' expr : {'>=', '$1', '$3'}.
+expr -> expr '<=' expr : {'<=', '$1', '$3'}.
+expr -> expr '<' expr  : {'<', '$1', '$3'}.
+expr -> expr '>' expr  : {'>', '$1', '$3'}.
 expr -> unop: '$1'.
 
 unop -> uminus : {negation, '$1'}. 
@@ -80,7 +91,7 @@ array -> '[' exprlist ']' : '$2'.
 
 keyValue -> '{' kv_items '}' : '$2'.
 kv_items -> expr ':' expr : [{kv,'$1','$3'}].
-kv_items -> expr ':' expr ',' kv_items : '$5' ++ [{kv, '$1', '$3'}].
+kv_items -> expr ':' expr ',' kv_items : [{kv, '$1', '$3'}] ++ '$5'.
 
 arglist -> '(' ')' : [].
 arglist -> '(' exprlist ')' : '$2'.
@@ -96,6 +107,8 @@ varDeclStmt -> var name '=' expr : {var,'$2','$4'}.
 % TODO/Maybe: Inferred typing.
 %varDeclStmt -> var name ':' '=' expr : {var, '$2', '$5'}.
 
+assignmentStmt -> name '=' expr : {'=', '$2', '$3'}.
+
 constDecl -> const name '=' expr : {const, '$2', '$4'}.
 
 %FIXME, not producing correct output
@@ -109,13 +122,19 @@ inheritance -> extends string '.' name : {extends, '$2', '$4'}.
 inheritance -> extends string : {extends, '$2'}.
 inheritance -> extends name : {extends, '$2'}.
 
-className -> class_name name ',' string : {class_name, '$2', '$4'}.
-className -> class_name name : {class_name, '$2'}.
+className -> class_name name ',' string : {class_name, '$2', '$4' }.
+className -> class_name name : {class_name, '$2' }.
 
 % Still introduces a shift conflict
-%functioncall -> name arglist : {func_call, '$2'}.
+functioncall -> name arglist : {func_call, '$2'}.
 
-constructorDecl -> 'func' name arglist ':' Block : {func_def, '$2', '$3'}.
+constructorDecl -> 'func' name arglist ':' Block : {func, '$2', '$3', '$5'}.
 
-ifStmt -> 'if' name comparison expr ':' Block : {if, '$3', '$2', '$4'}.
-ifStmt -> 'else' ':' Block : {ifStmt, $3}.
+forStmt -> 'for' name 'in' expr ':' Block : {for, '$2', '$4', '$6'}.
+
+flowStmt -> return expr : {return, '$2'}.
+flowStmt -> return : {return}.
+
+ifStmt -> 'if' expr ':' Block : {'if', '$2', '$4'}.
+ifStmt -> 'elif' expr ':' Block : {elif, '$2', '$4'}.
+ifStmt -> 'else' ':' Block : {else, '$3'}.
