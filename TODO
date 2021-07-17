@@ -1,3 +1,6 @@
+fixed most known errors, set expected shift to 2 after adding logical comparison operators. 
+now shift is 12 after adding 'return' statements.
+--
 Not sure what to do with if/else statements. I can parse a if.. not sure how to handle else, elif, etc..
 --
 Not quite parsing indents/dedents correctly. 
