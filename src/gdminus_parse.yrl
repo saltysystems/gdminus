@@ -108,7 +108,7 @@ varDeclStmt -> var name '=' expr : {var,'$2','$4'}.
 % TODO/Maybe: Inferred typing.
 %varDeclStmt -> var name ':' '=' expr : {var, '$2', '$5'}.
 
-assignmentStmt -> name '=' expr : {'=', '$2', '$3'}.
+assignmentStmt -> name '=' expr : {'=', '$1', '$3'}.
 
 constDecl -> const name '=' expr : {const, '$2', '$4'}.
 
