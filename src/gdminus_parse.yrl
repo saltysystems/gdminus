@@ -5,7 +5,7 @@ expr Script Statement Statements
 varDeclStmt constDecl enumDecl inheritance className keyValue array
 functioncall constructorDecl ifStmt assignmentStmt
 forStmt flowStmt
-array_items kv_items enum_list uminus unop arglist exprlist
+kv_items enum_list uminus unop arglist exprlist
 Block
 .
 
@@ -127,7 +127,7 @@ className -> class_name name ',' string : {class_name, '$2', '$4' }.
 className -> class_name name : {class_name, '$2' }.
 
 % Still introduces a shift conflict
-functioncall -> name arglist : {func_call, '$2'}.
+functioncall -> name arglist : {func_call, '$1', '$2'}.
 
 constructorDecl -> 'func' name arglist ':' Block : {func, '$2', '$3', '$5'}.
 
