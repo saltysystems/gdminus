@@ -43,6 +43,7 @@ Statements -> Statement : ['$1'].
 Statements -> Statements Statement : '$1' ++ ['$2'].
 
 Block -> indent Statements dedent : '$2'.
+Block -> indent Statements flowStmt dedent : '$2' ++ ['$3'].
 
 Statement -> varDeclStmt     : '$1'.
 Statement -> constDecl       : '$1'.
@@ -53,7 +54,7 @@ Statement -> className       : '$1'.
 Statement -> expr            : '$1'.
 Statement -> ifStmt          : '$1'.
 %Statement -> matchStmt      : '$1'.
-Statement -> flowStmt        : '$1'.
+%Statement -> flowStmt        : '$1'.
 Statement -> assignmentStmt  : '$1'.
 Statement -> forStmt         : '$1'.
 %Unsupported: assert, yield, preload
