@@ -35,10 +35,12 @@ Unary 1000 uminus.
 
 Script -> Statements : '$1'.
 
-Statements -> indent Statement dedent : [{indent, '$2', 'dedent'}].
-Statements -> Statement : ['$1'].
-Statements -> indent Statement Statements dedent : [{indent, '$2', 'dedent'}] ++ '$3'.
-Statements -> Statement Statements : ['$1'] ++ '$2'.
+IStatement -> 
+
+Statements -> Statement: '$1'.
+Statements -> Statements Statement : ['$1'] ++ '$2'.
+
+Block -> indent Statements dedent : '$1'.
 
 Statement -> varDeclStmt     : '$1'.
 Statement -> constDecl       : '$1'.
@@ -113,7 +115,7 @@ className -> class_name name : {class_name, '$2'}.
 % Still introduces a shift conflict
 %functioncall -> name arglist : {func_call, '$2'}.
 
-constructorDecl -> 'func' name arglist ':' : {func_def, '$2', '$3'}.
+constructorDecl -> 'func' name arglist ':' Block : {func_def, '$2', '$3'}.
 
-ifStmt -> 'if' name comparison expr ':' : {ifStmt, '$3', '$2', '$4'}.
-ifStmt -> 'else' ':' : {ifStmt, else}.
+ifStmt -> 'if' name comparison expr ':' Block : {if, '$3', '$2', '$4'}.
+ifStmt -> 'else' ':' Block : {ifStmt, $3}.
