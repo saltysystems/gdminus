@@ -13,7 +13,12 @@ Rules.
 \'(\\.|\\\n|[^'\\])*\' : string_token(TokenChars, TokenLen, TokenLine).
 {NAME}      : name_token(TokenChars, TokenLine).
 {NUMBER}    : {token, {number, TokenLine, list_to_integer(TokenChars)}}.
-{COMP}      : {token, {comparison, TokenLine, TokenChars}}.
+!=          : {token, {'!=', TokenLine, TokenChars}}.
+==          : {token, {'==', TokenLine, TokenChars}}.
+<=          : {token, {'<=', TokenLine, TokenChars}}.
+>=          : {token, {'>=', TokenLine, TokenChars}}.
+<           : {token, {'<', TokenLine, TokenChars}}.
+>           : {token, {'>', TokenLine, TokenChars}}.
 \=          : {token, {'=', TokenLine}}.
 \+          : {token, {'+', TokenLine}}.
 \-          : {token, {'-', TokenLine}}.
