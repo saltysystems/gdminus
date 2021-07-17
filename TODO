@@ -1,6 +1,8 @@
 Not sure what to do with if/else statements. I can parse a if.. not sure how to handle else, elif, etc..
 --
 Not quite parsing indents/dedents correctly. 
+update: https://stackoverflow.com/questions/20006049/recursive-descent-parser-with-indentation-and-backtracking
+update2: http://index-of.es/OS/Create%20Your%20Own%20Programming%20Language.pdf
 --
 After we use & abuse the process dictionary, we need to make sure that the
 lexxer runs in a separate, new process.
