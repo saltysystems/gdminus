@@ -1,0 +1,14 @@
+# Should succeed, because foo is declared in the scope scope
+var foo = bar
+if foo == true:
+    foo = baz
+
+# Should fail, because x is declared in the outer scope
+var x
+if x:
+    var x = y
+
+# Should succeed, both variables are defined at different scope levels
+var z0 = 0
+if z0:
+    var z1 = 1

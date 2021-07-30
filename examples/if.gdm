@@ -1,0 +1,9 @@
+var foo = "b"
+if foo == "baz":
+    foo = "zip"
+elif foo is "b":
+    foo = "zop"
+    var bar = "zed"
+    var j = 6+14
+    if j < 25:
+        bar = "zoo"
