@@ -4,7 +4,7 @@ Nonterminals
 expr Script Statement Statements
 varDeclStmt constDecl enumDecl inheritance className keyValue array
 functioncall constructorDecl ifStmt assignmentStmt
-forStmt flowStmt whileStmt
+forStmt flowStmt whileStmt breakStmt continueStmt
 kv_items enum_list uminus unop arglist exprlist
 Block
 .
@@ -17,7 +17,7 @@ number name string
 'false' 'true' '!' 'not' 'is' '==' '>=' '<=' '!=' '>' '<'
 % Keywords
 var extends class_name const enum func indent dedent if else elif
-for in return while
+for in return while break continue
 % Other symbols
 '.' ',' '[' ']' ':' '{' '}'
 % Types
@@ -54,6 +54,8 @@ Statement -> inheritance     : '$1'.
 Statement -> className       : '$1'.
 Statement -> expr            : '$1'.
 Statement -> ifStmt          : '$1'.
+Statement -> breakStmt       : '$1'.
+Statement -> continueStmt    : '$1'.
 %Statement -> matchStmt      : '$1'.
 %Statement -> flowStmt        : '$1'.
 Statement -> assignmentStmt  : '$1'.
@@ -136,6 +138,9 @@ constructorDecl -> 'func' name arglist ':' Block : {func, '$2', '$3', '$5'}.
 forStmt -> 'for' name 'in' expr ':' Block : {for, '$2', '$4', '$6'}.
 
 whileStmt -> while expr ':' Block : {while, '$2', '$4'}.
+
+breakStmt -> break : {break}.
+continueStmt -> continue : {continue}.
 
 flowStmt -> return expr : {return, '$2'}.
 flowStmt -> return : {return}.
