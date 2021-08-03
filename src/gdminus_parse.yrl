@@ -4,7 +4,7 @@ Nonterminals
 expr Script Statement Statements
 varDeclStmt constDecl enumDecl inheritance className keyValue array
 functioncall constructorDecl ifStmt assignmentStmt
-forStmt flowStmt
+forStmt flowStmt whileStmt
 kv_items enum_list uminus unop arglist exprlist
 Block
 .
@@ -17,7 +17,7 @@ number name string
 'false' 'true' '!' 'not' 'is' '==' '>=' '<=' '!=' '>' '<'
 % Keywords
 var extends class_name const enum func indent dedent if else elif
-for in return
+for in return while
 % Other symbols
 '.' ',' '[' ']' ':' '{' '}'
 % Types
@@ -58,6 +58,7 @@ Statement -> ifStmt          : '$1'.
 %Statement -> flowStmt        : '$1'.
 Statement -> assignmentStmt  : '$1'.
 Statement -> forStmt         : '$1'.
+Statement -> whileStmt       : '$1'.
 %Unsupported: assert, yield, preload
 
 expr -> keyValue : '$1'.
@@ -133,6 +134,8 @@ functioncall -> name arglist : {func_call, '$1', '$2'}.
 constructorDecl -> 'func' name arglist ':' Block : {func, '$2', '$3', '$5'}.
 
 forStmt -> 'for' name 'in' expr ':' Block : {for, '$2', '$4', '$6'}.
+
+whileStmt -> while expr ':' Block : {while, '$2', '$4'}.
 
 flowStmt -> return expr : {return, '$2'}.
 flowStmt -> return : {return}.
