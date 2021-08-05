@@ -4,7 +4,7 @@
 -export([walk/1]).
 
 -record(gdm_env, {id=0, enclosing=0, map=maps:new()}).
--record(gdm_state, {curEnv=0, curLoop=0, envs}).
+-record(gdm_state, {curEnv=0, curLoop=0, envs, breakers=maps:new()}).
 
 walk(Tree) ->
     E0 = #gdm_env{id=0, enclosing=0, map=maps:new()},
@@ -12,6 +12,9 @@ walk(Tree) ->
     walk(Tree, St0).
 
 walk([], St0) ->
+    St0;
+walk(_, St0) when map_size(St0#gdm_state.breakers) > 0 ->
+    % any time we see a breaker, deal with it.
     St0;
 walk([{Oper, Val1, Val2} | Rest], St0) when 
       Oper == '+'; Oper == '-'; Oper =='*'; Oper == '/'; 
@@ -22,29 +25,36 @@ walk([{Oper, Val1, Val2} | Rest], St0) when
     walk(Rest, St0);
 walk([{var, Name} | Rest], St0) ->
     St1 = declStmt({var, Name, null}, St0),
-    io:format("Next state: ~p~n", [St1]),
+    %io:format("Next state: ~p~n", [St1]),
     walk(Rest, St1);
 walk([{var, Name, Val} | Rest], St0) ->
     St1 = declStmt({var, Name, Val}, St0),
-    io:format("Next state: ~p~n", [St1]),
+    %io:format("Next state: ~p~n", [St1]),
     walk(Rest, St1);
 walk([{'=', Name, Val} | Rest], St0) ->
     St1 = assignStmt({'=', Name, Val}, St0),
-    io:format("Next state: ~p~n", [St1]),
+    %io:format("Next state: ~p~n", [St1]),
     walk(Rest, St1);
 walk([{Oper, Exp, Block} | Rest], St0) when Oper == 'if'; Oper == 'elif' ->
     E = St0#gdm_state.curEnv,
     St1 = ifStmt(exp(Exp, St0), Block, Rest, St0#gdm_state{curEnv = E + 1}),
-    io:format("Next state: ~p~n", [St1]),
+    %io:format("Next state: ~p~n", [St1]),
     walk(Rest, St1);
 walk([{while, Exp, Block} | Rest], St0) ->
     L = St0#gdm_state.curLoop,
     St1 = whileStmt(Exp, Block, St0#gdm_state{curLoop = L + 1}),
-    io:format("Next state: ~p~n", [St1]),
+    %io:format("Next state: ~p~n", [St1]),
     walk(Rest, St1);
-walk([{continue} | _Rest], St0) ->
-    %TODO Make sure this only happens from within while or for loops
-    St0.
+walk([{Oper} | _Rest], St0) when Oper == 'break'; Oper == 'continue' ->
+    % check the state loop so we die with an error  when we're not in for/while
+    CurLoop = St0#gdm_state.curLoop,
+    case CurLoop >= 1 of
+        true ->
+            Breakers = St0#gdm_state.breakers,
+            %io:format("(walk) Caught break. Current state: ~p~n", [St0]),
+            St1 = St0#gdm_state{breakers=maps:put(CurLoop, Oper, Breakers)},
+            St1
+    end.
 
 exp({name, _Line, Val}, St0) ->
     get_env(Val, St0);
@@ -111,6 +121,7 @@ ifStmt(true, Block, _, St0) ->
     eval_block(Block, St0).
 
 whileStmt(Exp,Block,St0) ->
+    io:format("Current state: ~p~n", [St0]),
     whileStmt(exp(Exp, St0), Exp, Block, St0).
 whileStmt(false, _Exp, _Block, St0) ->
     L = St0#gdm_state.curLoop,
@@ -118,14 +129,50 @@ whileStmt(false, _Exp, _Block, St0) ->
 whileStmt(true, Exp, Block, St0) ->
     E = St0#gdm_state.curEnv,
     St1 = eval_block(Block, St0#gdm_state{curEnv=E+1}),
-    whileStmt(Exp, Block, St1).
-
+    CurLoop = St0#gdm_state.curLoop,
+    Breakers = St0#gdm_state.breakers,
+    % Have to check if a break is introduced here because we need to know if
+    % the While statement should be stopped early.
+    case maps:get(CurLoop, Breakers, false) of
+        false -> 
+            % no c-c-combo breaker so far, proceed as normal
+            %whileStmt(exp(Exp, St1), Exp, Block, St1);
+            whileStmt(Exp, Block, St1);
+        break ->
+            % Stop the recursion and return the current state
+            St2 = handle_breaker(St1),
+            St2#gdm_state{curLoop = CurLoop - 1};
+        continue ->
+            % Handle the breaker, and then run the next phase of the loop
+            St2 = handle_breaker(St1),
+            io:format("Current state: ~p~n", [St2]),
+            whileStmt(Exp, Block, St2)
+    end.
 
 eval_block(Block, St0) ->
     CurEnv = St0#gdm_state.curEnv,
-    St1 = walk(Block, St0#gdm_state{curEnv=CurEnv}),
+    CurLoop = St0#gdm_state.curLoop,
+    Breakers = St0#gdm_state.breakers,
+    %io:format("CurEnv: ~p, CurLoop: ~p, Breakers: ~p~n", [CurEnv, CurLoop, Breakers]),
+    St1 = case maps:get(CurLoop, Breakers, false) of 
+              false ->
+                 % io:format("About to evaluate block ~p~n", [Block]),
+                  walk(Block, St0#gdm_state{curEnv=CurEnv});
+              break ->
+                  io:format("(eval) Caught break. Current state: ~p~n", [St0]),
+                  % Just return whatever we have so far
+                  St0;
+              continue ->
+                  io:format("(eval) Caught continue. Current state ~p~n", [St0]),
+                  St0
+          end,
     % Block is evaluated so we can decrement env
     St1#gdm_state{curEnv = CurEnv - 1}.
+
+handle_breaker(St0) ->
+    CurLoop = St0#gdm_state.curLoop,
+    Breakers = St0#gdm_state.breakers,
+    St0#gdm_state{breakers=maps:remove(CurLoop, Breakers)}.
 
 % Put Env 2 will put stuff exactly whre it's told to.
 put_env2(Key, Val, Where, St0) ->
