@@ -45,6 +45,10 @@ walk([{while, Exp, Block} | Rest], St0) ->
     St1 = whileStmt(Exp, Block, St0#gdm_state{curLoop = L + 1}),
     %io:format("Next state: ~p~n", [St1]),
     walk(Rest, St1);
+walk([{for, {name, _Line, Name}, Iter, Block} | Rest], St0) ->
+    L = St0#gdm_state.curLoop,
+    St1 = forStmt(Name, exp(Iter, St0), Block, St0#gdm_state{curLoop = L + 1}),
+    walk(Rest, St1);
 walk([{Oper} | _Rest], St0) when Oper == 'break'; Oper == 'continue' ->
     % check the state loop so we die with an error  when we're not in for/while
     CurLoop = St0#gdm_state.curLoop,
@@ -119,6 +123,23 @@ ifStmt(false, _Block, _, St0) ->
     St0#gdm_state{curEnv = E - 1};
 ifStmt(true, Block, _, St0) ->
     eval_block(Block, St0).
+
+forStmt(Name,Iter,Block,St0) when is_integer(Iter) ->
+    R = lists:seq(1, Iter),
+    io:format("Current vals: ~p,~p~n", [Name, R]),
+    forStmt(Name, R, Block, St0);
+forStmt(Name,[],_Block, St0) ->
+    io:format("Current state: ~p~n", [St0]),
+    St0;
+forStmt(Name,Iter,Block, St0) when is_list(Iter) ->
+    [Head|Tail] = Iter,
+    Where = St0#gdm_state.curEnv+1, % the variabble Name is implicitly declared in the block
+    St1 = put_env2(Name, Head, Where, St0),
+    io:format("Current state: ~p~n", [St1]),
+    [_Head|Tail] = Iter,
+    E = St1#gdm_state.curEnv,
+    St2 = eval_block(Block, St1#gdm_state{curEnv=E+1}),
+    forStmt(Name, Tail, Block, St2).
 
 whileStmt(Exp,Block,St0) ->
     io:format("Current state: ~p~n", [St0]),
