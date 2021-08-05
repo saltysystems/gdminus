@@ -1,7 +1,9 @@
 var i = 0
+var j = 0 
 while i < 10:
-    if i < 3:
-        continue
-    #elif i == 9:
-    #    break
     i = i + 1
+    if i < 2:
+        continue
+    elif i == 5:
+        break
+    j = j + 1
