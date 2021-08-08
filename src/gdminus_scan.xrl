@@ -1,6 +1,7 @@
 Definitions.
 
 NUMBER = [0-9]+
+FLOAT = ([0-9]*[.])?[0-9]+
 WS = [\s]+
 INDENT = \n[\s]*|\n[\t]*
 LB = \n|\r\n|\r
@@ -13,6 +14,7 @@ Rules.
 \'(\\.|\\\n|[^'\\])*\' : string_token(TokenChars, TokenLen, TokenLine).
 {NAME}      : name_token(TokenChars, TokenLine).
 {NUMBER}    : {token, {number, TokenLine, list_to_integer(TokenChars)}}.
+{FLOAT}     : {token, {number, TokenLine, handle_float(TokenChars)}}.
 !=          : {token, {'!=', TokenLine, TokenChars}}.
 ==          : {token, {'==', TokenLine, TokenChars}}.
 <=          : {token, {'<=', TokenLine, TokenChars}}.
@@ -198,6 +200,16 @@ name_string(Name) ->
 string_token(Cs0, Len, L) ->
     Cs1 = string:substr(Cs0, 2, Len - 2),   %Strip quotes
 	{token, {string, L, Cs1}}.
+
+handle_float(TokenChars) -> 
+    [H|_T] = TokenChars,
+    case H of 
+        % ASCII '.' symbol
+        46 -> 
+            list_to_float("0" ++ TokenChars);
+        _ ->
+            list_to_float(TokenChars)
+    end.
 
 %% Logical
 is_keyword(<<"and">>) -> true;
