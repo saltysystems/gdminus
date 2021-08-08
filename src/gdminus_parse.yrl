@@ -4,7 +4,7 @@ Nonterminals
 expr Script Statement Statements
 varDeclStmt constDecl enumDecl inheritance className keyValue array
 functioncall constructorDecl ifStmt assignmentStmt
-forStmt flowStmt whileStmt breakStmt continueStmt
+forStmt returnStmt whileStmt breakStmt continueStmt
 kv_items enum_list uminus unop arglist exprlist
 Block
 .
@@ -43,8 +43,6 @@ Statements -> Statement : ['$1'].
 Statements -> Statements Statement : '$1' ++ ['$2'].
 
 Block -> indent Statements dedent : '$2'.
-Block -> indent flowStmt dedent : '$3'.
-Block -> indent Statements flowStmt dedent : '$2' ++ ['$3'].
 
 Statement -> varDeclStmt     : '$1'.
 Statement -> constDecl       : '$1'.
@@ -56,8 +54,8 @@ Statement -> expr            : '$1'.
 Statement -> ifStmt          : '$1'.
 Statement -> breakStmt       : '$1'.
 Statement -> continueStmt    : '$1'.
+Statement -> returnStmt      : '$1'.
 %Statement -> matchStmt      : '$1'.
-%Statement -> flowStmt        : '$1'.
 Statement -> assignmentStmt  : '$1'.
 Statement -> forStmt         : '$1'.
 Statement -> whileStmt       : '$1'.
@@ -130,7 +128,7 @@ inheritance -> extends name : {extends, '$2'}.
 className -> class_name name ',' string : {class_name, '$2', '$4' }.
 className -> class_name name : {class_name, '$2' }.
 
-% Still introduces a shift conflict
+% Still introduces a shift conflict, which we are suppressing
 functioncall -> name arglist : {func_call, '$1', '$2'}.
 
 constructorDecl -> 'func' name arglist ':' Block : {func, '$2', '$3', '$5'}.
@@ -141,9 +139,7 @@ whileStmt -> while expr ':' Block : {while, '$2', '$4'}.
 
 breakStmt -> break : {break}.
 continueStmt -> continue : {continue}.
-
-flowStmt -> return expr : {return, '$2'}.
-flowStmt -> return : {return}.
+returnStmt -> return : {return}.
 
 ifStmt -> 'if' expr ':' Block : {'if', '$2', '$4'}.
 ifStmt -> 'elif' expr ':' Block : {elif, '$2', '$4'}.
