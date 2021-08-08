@@ -1,0 +1,8 @@
+func add_one(number):
+    return number + 1
+
+func multipi(number1, number2):
+    return number1 * number2 * 3.14159
+
+add_one(1)
+multipi(3,4)
