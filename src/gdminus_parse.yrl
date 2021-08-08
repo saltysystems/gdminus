@@ -43,6 +43,8 @@ Statements -> Statement : ['$1'].
 Statements -> Statements Statement : '$1' ++ ['$2'].
 
 Block -> indent Statements dedent : '$2'.
+Block -> indent returnStmt dedent : '$2'.
+Block -> indent Statements returnStmt dedent : '$2' ++ ['$3'].
 
 Statement -> varDeclStmt     : '$1'.
 Statement -> constDecl       : '$1'.
@@ -54,7 +56,6 @@ Statement -> expr            : '$1'.
 Statement -> ifStmt          : '$1'.
 Statement -> breakStmt       : '$1'.
 Statement -> continueStmt    : '$1'.
-Statement -> returnStmt      : '$1'.
 %Statement -> matchStmt      : '$1'.
 Statement -> assignmentStmt  : '$1'.
 Statement -> forStmt         : '$1'.
@@ -139,7 +140,9 @@ whileStmt -> while expr ':' Block : {while, '$2', '$4'}.
 
 breakStmt -> break : {break}.
 continueStmt -> continue : {continue}.
+
 returnStmt -> return : {return}.
+returnStmt -> return expr : {return, '$2'}.
 
 ifStmt -> 'if' expr ':' Block : {'if', '$2', '$4'}.
 ifStmt -> 'elif' expr ':' Block : {elif, '$2', '$4'}.
