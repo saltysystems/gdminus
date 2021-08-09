@@ -2,10 +2,14 @@
 % Simple AST treewalker for GDMinus
 -include_lib("eunit/include/eunit.hrl").
 
--export([walk/1]).
+-export([walk/1, file/1]).
 
 -record(gdm_env, {id=0, vars=maps:new(), functions=maps:new()}).
 -record(gdm_state, {curEnv=0, curLoop=0, envs, breakers=maps:new()}).
+
+file(Path) ->
+    F = gdminus_test:parse_file(Path),
+    walk(F).
 
 walk(Tree) ->
     E0 = #gdm_env{id=0, vars=maps:new(), functions=maps:new()},
@@ -22,7 +26,7 @@ walk([{Oper, Val1, Val2} | Rest], St0) when
       Oper == '=='; Oper == '>='; Oper == '<='; 
       Oper == '!='; Oper == '>' ; Oper == '<' ->
     R = exp({Oper, Val1,Val2}, St0),
-    io:format("Output: ~p~n", [R]),
+    io:format("Expr is ~p~n", [R]),
     walk(Rest, St0);
 walk([{var, Name} | Rest], St0) ->
     St1 = declStmt({var, Name, null}, St0),
@@ -38,7 +42,11 @@ walk([{'=', Name, Val} | Rest], St0) ->
     walk(Rest, St1);
 walk([{Oper, Exp, Block} | Rest], St0) when Oper == 'if'; Oper == 'elif' ->
     E = St0#gdm_state.curEnv,
-    St1 = ifStmt(exp(Exp, St0), Block, Rest, St0#gdm_state{curEnv = E + 1}),
+    io:format("exp is ~p~n", [Exp]),
+    {Bool, St0} = exp(Exp, St0), % shouldnt modify the state 
+    io:format("State is ~p~n", [St0]),
+    io:format("Val is ~p~n", [Bool]),
+    St1 = ifStmt(Bool, Block, Rest, St0#gdm_state{curEnv = E + 1}),
     %io:format("Next state: ~p~n", [St1]),
     walk(Rest, St1);
 walk([{while, Exp, Block} | Rest], St0) ->
@@ -48,12 +56,15 @@ walk([{while, Exp, Block} | Rest], St0) ->
     walk(Rest, St1);
 walk([{for, {name, _Line, Name}, Iter, Block} | Rest], St0) ->
     L = St0#gdm_state.curLoop,
-    St1 = forStmt(Name, exp(Iter, St0), Block, St0#gdm_state{curLoop = L + 1}),
-    walk(Rest, St1);
+    {Expr, St0} = exp(Iter, St0), % shouldnt modify the state. %TODO validate 
+    St2 = forStmt(Name, Expr, Block, St0#gdm_state{curLoop = L + 1}),
+    walk(Rest, St2);
 walk([{func, {name, _Line, Name}, Args, Block} | Rest], St0) ->
     St1 = constructorStmt(Name, Args, Block, St0),
     walk(Rest, St1);
-walk([{func_call, {name, _Line, Name}, Args} | Rest], St0) ->
+% not sure we need to walk for the function call since its an expr
+walk([{func_call, Name, Args} | Rest], St0) ->
+    %{_Val, St1} = exp({func_call, Name, Args}, St0),
     St1 = exp({func_call, Name, Args}, St0),
     walk(Rest, St1);
 walk([{Oper} | _Rest], St0) when Oper == 'break'; Oper == 'continue' ->
@@ -65,38 +76,69 @@ walk([{Oper} | _Rest], St0) when Oper == 'break'; Oper == 'continue' ->
             %io:format("(walk) Caught break. Current state: ~p~n", [St0]),
             St1 = St0#gdm_state{breakers=maps:put(CurLoop, Oper, Breakers)},
             St1
-    end.
+    end;
+walk([{return} | _Rest], St0) ->
+    %{null, St0};
+    St0;
+walk([{return, Expr} | _Rest], St0) ->
+    %io:format("Current state is ~p~n", [St0]),
+    %{exp(Expr, St0), St0}.
+    St0.
 
-exp({string, _Line, Val}, _St0) ->
-    Val;
+
+exp({string, _Line, Val}, St0) ->
+    {Val, St0};
 exp({name, _Line, Val}, St0) ->
-    get_var(Val, St0);
-exp({number, _Line, Val}, _St0) ->
-    Val;
+    {get_var(Val, St0), St0};
+exp({number, _Line, Val}, St0) ->
+    {Val, St0};
 exp({func_call, Name, Args}, St0) ->
-    call(Name, Args, St0);
+    call(Name, Args, St0); 
 exp({'+', Val1, Val2}, St0) ->
-    overload_add(exp(Val1,St0),exp(Val2,St0));
+    % We will evaluate exp1 and then exp2 with the state from exp1
+    {V1, St1} = exp(Val1, St0),
+    {V2, St2} = exp(Val2, St1),
+    Val = overload_add(V1,V2),
+    {Val, St2};
 exp({'-', Val1, Val2}, St0) ->
-    exp(Val1, St0) - exp(Val2, St0);
+    {V1,St1} = exp(Val1, St0),
+    {V2,St2} = exp(Val2, St1),
+    {V2 - V1, St2};
 exp({'*', Val1, Val2}, St0) ->
-    exp(Val1, St0) * exp(Val2, St0);
+    {V1,St1} = exp(Val1, St0),
+    {V2,St2} = exp(Val2, St1),
+    {V2 * V1, St2};
 exp({'/', Val1, Val2}, St0) ->
-    exp(Val1, St0) / exp(Val2, St0);
+    {V1,St1} = exp(Val1, St0),
+    {V2,St2} = exp(Val2, St1),
+    {V2 / V1, St2};
 exp({'==', Val1, Val2}, St0) ->
-    exp(Val1, St0) == exp(Val2, St0);
+    {V1,St1} = exp(Val1, St0),
+    {V2,St2} = exp(Val2, St1),
+    {V1 == V2, St2};
 exp({'!=', Val1, Val2}, St0) ->
-    exp(Val1,St0) /= exp(Val2, St0);
+    {V1,St1} = exp(Val1, St0),
+    {V2,St2} = exp(Val2, St1),
+    {V1 /= V2, St2};
 exp({'>=', Val1, Val2}, St0) ->
-    exp(Val1, St0) >= exp(Val2, St0);
+    {V1,St1} = exp(Val1, St0),
+    {V2,St2} = exp(Val2, St1),
+    {V1 >= V2, St2};
 exp({'<=', Val1, Val2}, St0) ->
-    exp(Val1, St0) =< exp(Val2, St0);
+    {V1,St1} = exp(Val1, St0),
+    {V2,St2} = exp(Val2, St1),
+    {V1 =< V2, St2};
 exp({'>', Val1, Val2}, St0) ->
-    exp(Val1, St0) > exp(Val2, St0);
+    {V1,St1} = exp(Val1, St0),
+    {V2,St2} = exp(Val2, St1),
+    {V1 > V2, St2};
 exp({'<', Val1, Val2}, St0) ->
-    exp(Val1, St0) < exp(Val2, St0);
-exp(Other, _St0) ->
-    Other.
+    {V1,St1} = exp(Val1, St0),
+    {V2,St2} = exp(Val2, St1),
+    {V1 < V2, St2};
+exp(Other, St0) ->
+    {Other, St0}.
+
 
 % Provide two ways of using the '+' operator, adding numbers and concatinating strings.
 overload_add(Val1, Val2) when is_number(Val1), is_number(Val2) ->
@@ -104,7 +146,7 @@ overload_add(Val1, Val2) when is_number(Val1), is_number(Val2) ->
 overload_add(Val1, Val2) when is_list(Val1), is_list(Val2) ->
     Val1 ++ Val2.
 
-call(Name, Args, St0) ->
+call({name, _L, Name}, Args, St0) ->
     % Retrieve the parameters function definition
     {Parameters, FunBlock} = get_fun(Name, St0),
     % Make sure the arguments and the params have the same arity
@@ -114,16 +156,23 @@ call(Name, Args, St0) ->
             St1 = St0#gdm_state{curEnv = E + 1},
             %A = [ declStmt({var, {name, null, ParamName}, Args}, St0) || 
             %                {Args, {_ParamType, _L2, ParamName}}  <- lists:zip(Args, Parameters) ],
-            L = lists:zip(Args, Parameters)
-            %TODO:
+            L = lists:zip(Args, Parameters),
             % 1. Declare every variable in the parameter list with the values supplied from the arglist
-            % 2. (Warn if any variables are shadowed (maybe?). )
-            % 3. Process the block with the temp vars
-            % 4. (Maybe? Do not allow break/continue functions to be called here)
+            St2 = setup_fun_env(L, St1),
+            % 2. Process the block with the temp vars
+            io:format("funblock is ~p~n", [FunBlock]),
+            R = eval_fun_block(FunBlock, St2),
+            io:format("result is ~p~n", [R]),
+            R
     end.
-            
-            
-    
+
+
+% Setup the environment for a function to execute
+setup_fun_env([], St0) ->
+    St0;
+setup_fun_env([{Arg, Param} | Rest], St0) ->
+    St1 = declStmt({var, Param, Arg}, St0),
+    setup_fun_env(Rest, St1).
     
 
 % We can declare only if the variable IS NOT declared in the scope or any preceeding scope
@@ -151,7 +200,10 @@ constructorStmt(Name, Args, Block, St0 = #gdm_state{} ) when St0#gdm_state.curEn
     end.
 
 ifStmt(false, _Block, [{elif, Expr2, Block2}|Rest], St0) ->
-    ifStmt(exp(Expr2, St0), Block2, Rest, St0);
+    {Val, St1} = exp(Expr2, St0),
+    io:format("State is ~p~n", [St1]),
+    io:format("Val is ~p~n", [Val]),
+    ifStmt(Val, Block2, Rest, St1);
 ifStmt(false, _Block, [{else, Block2}|_Rest], St0) ->
     eval_block(Block2, St0);
 ifStmt(false, _Block, _, St0) ->
@@ -159,13 +211,16 @@ ifStmt(false, _Block, _, St0) ->
     E = St0#gdm_state.curEnv,
     St0#gdm_state{curEnv = E - 1};
 ifStmt(true, Block, _, St0) ->
-    eval_block(Block, St0).
+    io:format("Condition is true, evaluate block ~p~n", [Block]),
+    R = eval_block(Block, St0),
+    io:format("Result is ~p~n", [R]),
+    R.
 
 forStmt(Name,Iter,Block,St0) when is_integer(Iter) ->
     R = gdlist_seq(1, Iter),
     io:format("Current vals: ~p,~p~n", [Name, R]),
     forStmt(Name, R, Block, St0);
-forStmt(Name,[],_Block, St0) ->
+forStmt(_Name,[],_Block, St0) ->
     io:format("Current state: ~p~n", [St0]),
     St0;
 forStmt(Name,Iter,Block, St0) when is_list(Iter) ->
@@ -179,7 +234,8 @@ forStmt(Name,Iter,Block, St0) when is_list(Iter) ->
 
 whileStmt(Exp,Block,St0) ->
     io:format("Current state: ~p~n", [St0]),
-    whileStmt(exp(Exp, St0), Exp, Block, St0).
+    {Val, St1} = exp(Exp, St0),
+    whileStmt(Val, Exp, Block, St1).
 whileStmt(false, _Exp, _Block, St0) ->
     L = St0#gdm_state.curLoop,
     St0#gdm_state{curLoop = L - 1}; % loop is finished, decrement the loop level
@@ -212,8 +268,11 @@ eval_block(Block, St0) ->
     Envs = St0#gdm_state.envs,
     St1 = case maps:get(CurLoop, Breakers, false) of 
               false ->
-                 % io:format("About to evaluate block ~p~n", [Block]),
-                  walk(Block, St0#gdm_state{curEnv=CurEnv});
+                  io:format("About to evaluate block ~p~n", [Block]),
+                  io:format("About to evaluate state ~p~n", [St0]),
+                  R = walk(Block, St0),
+                  io:format("Just evaluated block ~p~n", [R]),
+                  R;
               break ->
                   io:format("(eval) Caught break. Current state: ~p~n", [St0]),
                   % Just return whatever we have so far
@@ -223,8 +282,20 @@ eval_block(Block, St0) ->
                   St0
           end,
     % Block is evaluated so we can decrement env and purge this env we created
-    NewEnvs = lists:keydelete(CurEnv, #gdm_env.id, Envs),
-    St1#gdm_state{curEnv = CurEnv - 1, envs=NewEnvs}.
+    NewEnvs = lists:keydelete(CurEnv, #gdm_env.id, St1#gdm_state.envs),
+    St2 = St1#gdm_state{curEnv = CurEnv - 1, envs=NewEnvs},
+    io:format("St2 is after block: ~p~n", [St2]),
+    St2.
+
+eval_fun_block(Block, St0) ->
+    CurEnv = St0#gdm_state.curEnv,
+    io:format("About to evaluate block ~p~n", [Block]),
+    io:format("About to evaluate state ~p~n", [St0]),
+    {_Val, St1} = walk(Block, St0),
+    NewEnvs = lists:keydelete(CurEnv, #gdm_env.id, St1#gdm_state.envs),
+    io:format("state ~p~n", [St1]),
+    St2 = St1#gdm_state{curEnv = CurEnv - 1, envs=NewEnvs},
+    St2.
 
 handle_breaker(St0) ->
     CurLoop = St0#gdm_state.curLoop,
@@ -242,38 +313,43 @@ put_var(Key, Val, Where, St0) ->
     %io:format("Current envs are: ~p~n", [Envs0]),
     % "Where" is the level where we wnat to do a replacement, so get the
     % environment for that level or make it if it doesn't exist
-    Envs1 = 
-        case lists:keyfind(Where, #gdm_env.id, Envs0) of
-            % have to make a new env
-            false ->
-                % special casing around level 0 (global scope)
-                if 
-                    Where == 0 ->
-                        E = #gdm_env{};
-                    true ->
-                        E = #gdm_env{id=Where}
-                end,
-                M0 = E#gdm_env.vars,
-                % New map has the value we want inserted
-                % Try to evaluate the expression as much as possible
-                M1 = maps:put(Key, exp(Val, St0), M0),
-                % Reinsert the map into the environment
-                E1 = E#gdm_env{vars=M1},
-                [ E1 | Envs0 ];
-            % Found an env
-            E0 -> 
-                M0 = E0#gdm_env.vars,
-                % New map has the value we want inserted
-                % Try to evaluate the expression as much as possible
-                M1 = maps:put(Key, exp(Val, St0), M0),
-                % Reinsert the map into the environment
-                E1 = E0#gdm_env{vars=M1},
-                % Reinsert the environment into the EnvList
-                lists:keyreplace(Where, #gdm_env.id, Envs0, E1)
-        end,
-    % Update the state (phew!)
-    St1 = St0#gdm_state{envs=Envs1},
-    St1.
+    case lists:keyfind(Where, #gdm_env.id, Envs0) of
+        % have to make a new env
+        false ->
+            % special casing around level 0 (global scope)
+            if
+                Where == 0 ->
+                    E = #gdm_env{};
+                true ->
+                    E = #gdm_env{id=Where}
+            end,
+            M0 = E#gdm_env.vars,
+            % New map has the value we want inserted
+            % Try to evaluate the expression as much as possible
+            {R,St1} = exp(Val, St0),
+            M1 = maps:put(Key, R, M0),
+            % Reinsert the map into the environment
+            E1 = E#gdm_env{vars=M1},
+            Envs1 = [ E1 | Envs0 ],
+            St1#gdm_state{envs=Envs1};
+        % Found an env
+        E0 ->
+            M0 = E0#gdm_env.vars,
+            % New map has the value we want inserted
+            % Try to evaluate the expression as much as possible
+            io:format("(PRE) Current state is ~p~n", [St0]),
+            io:format("Current val is ~p~n", [Val]),
+            io:format("Current exp is ~p~n", [exp(Val, St0)]),
+            {R,St1} = exp(Val, St0),
+            M1 = maps:put(Key, R, M0),
+            % Reinsert the map into the environment
+            E1 = E0#gdm_env{vars=M1},
+            % Reinsert the environment into the EnvList
+            Envs1 = lists:keyreplace(Where, #gdm_env.id, Envs0, E1),
+            St2 = St1#gdm_state{envs=Envs1},
+            io:format("(POST) Current state is ~p~n", [St2]),
+            St2
+    end.
 
 walk_var(Key, #gdm_state{curEnv=0, envs=Envs}, LookingFor) -> 
     % Current environment is 0, the global scope, should always succeed
@@ -398,7 +474,7 @@ walk_fun(Key, St0 = #gdm_state{curEnv=Level, envs=Envs}, LookingFor) ->
             walk_fun(Key, St0#gdm_state{curEnv=Level - 1, envs=Envs}, LookingFor)
     end.
 
-get_fun(Key, St0 = #gdm_state{curEnv=0, envs=Envs}) ->
+get_fun(Key, #gdm_state{curEnv=0, envs=Envs}) ->
     E = maybe_keyfind_env(0, Envs),
     Map = E#gdm_env.functions,
     case maps:get(Key, Map, null) of
