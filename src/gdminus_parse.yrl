@@ -43,7 +43,7 @@ Statements -> Statement : ['$1'].
 Statements -> Statements Statement : '$1' ++ ['$2'].
 
 Block -> indent Statements dedent : '$2'.
-Block -> indent returnStmt dedent : '$2'.
+Block -> indent returnStmt dedent : ['$2'].
 Block -> indent Statements returnStmt dedent : '$2' ++ ['$3'].
 
 Statement -> varDeclStmt     : '$1'.
