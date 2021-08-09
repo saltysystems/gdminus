@@ -1,8 +1,12 @@
-func add_one(number):
-    return number + 1
+var x = 0
+func add_to_x(n):
+    x = x + n
+    return x
+
+add_to_x(10)
+
+#var y = add_to_x(10) # should be Null
 
 func multipi(number1, number2):
     return number1 * number2 * 3.14159
-
-add_one(1)
-multipi(3,4)
+var result = multipi(3,4)
