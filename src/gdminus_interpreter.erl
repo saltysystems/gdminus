@@ -18,6 +18,9 @@ walk(Tree) ->
 
 walk([], St0) ->
     St0;
+walk(_, St0) when length(St0#gdm_state.envs) > 15 ->
+    io:format("Something has gone wrong.."),
+    io:format("State is ~p~n", [St0]);
 walk(_, St0) when map_size(St0#gdm_state.breakers) > 0 ->
     % any time we see a breaker, deal with it.
     St0;
@@ -60,12 +63,13 @@ walk([{for, {name, _Line, Name}, Iter, Block} | Rest], St0) ->
     St2 = forStmt(Name, Expr, Block, St0#gdm_state{curLoop = L + 1}),
     walk(Rest, St2);
 walk([{func, {name, _Line, Name}, Args, Block} | Rest], St0) ->
+    io:format("Current state is ~p~n", [St0]),
     St1 = constructorStmt(Name, Args, Block, St0),
     walk(Rest, St1);
 % not sure we need to walk for the function call since its an expr
 walk([{func_call, Name, Args} | Rest], St0) ->
-    %{_Val, St1} = exp({func_call, Name, Args}, St0),
-    St1 = exp({func_call, Name, Args}, St0),
+    {_Val, St1} = exp({func_call, Name, Args}, St0),
+    %St1 = exp({func_call, Name, Args}, St0),
     walk(Rest, St1);
 walk([{Oper} | _Rest], St0) when Oper == 'break'; Oper == 'continue' ->
     % check the state loop so we die with an error  when we're not in for/while
@@ -78,12 +82,12 @@ walk([{Oper} | _Rest], St0) when Oper == 'break'; Oper == 'continue' ->
             St1
     end;
 walk([{return} | _Rest], St0) ->
-    %{null, St0};
-    St0;
+    {null, St0};
+    %St0;
 walk([{return, Expr} | _Rest], St0) ->
     %io:format("Current state is ~p~n", [St0]),
-    %{exp(Expr, St0), St0}.
-    St0.
+    exp(Expr, St0).
+    %St0.
 
 
 exp({string, _Line, Val}, St0) ->
@@ -212,7 +216,10 @@ ifStmt(false, _Block, _, St0) ->
     St0#gdm_state{curEnv = E - 1};
 ifStmt(true, Block, _, St0) ->
     io:format("Condition is true, evaluate block ~p~n", [Block]),
-    R = eval_block(Block, St0),
+    {_Val,R} = case eval_block(Block, St0) of
+        {V,S} -> {V,S};
+        S -> {null, S}
+    end,
     io:format("Result is ~p~n", [R]),
     R.
 
@@ -266,20 +273,24 @@ eval_block(Block, St0) ->
     CurLoop = St0#gdm_state.curLoop,
     Breakers = St0#gdm_state.breakers,
     Envs = St0#gdm_state.envs,
-    St1 = case maps:get(CurLoop, Breakers, false) of 
+    {Val, St1} = case maps:get(CurLoop, Breakers, false) of 
               false ->
                   io:format("About to evaluate block ~p~n", [Block]),
                   io:format("About to evaluate state ~p~n", [St0]),
-                  R = walk(Block, St0),
+                  R =
+                    case walk(Block, St0) of % 'return' statements can return 2 things
+                        {V, State} -> {V, State};
+                        State -> {null, State}
+                    end,
                   io:format("Just evaluated block ~p~n", [R]),
                   R;
               break ->
                   io:format("(eval) Caught break. Current state: ~p~n", [St0]),
                   % Just return whatever we have so far
-                  St0;
+                  {null, St0};
               continue ->
                   io:format("(eval) Caught continue. Current state ~p~n", [St0]),
-                  St0
+                  {null, St0}
           end,
     % Block is evaluated so we can decrement env and purge this env we created
     NewEnvs = lists:keydelete(CurEnv, #gdm_env.id, St1#gdm_state.envs),
@@ -291,11 +302,11 @@ eval_fun_block(Block, St0) ->
     CurEnv = St0#gdm_state.curEnv,
     io:format("About to evaluate block ~p~n", [Block]),
     io:format("About to evaluate state ~p~n", [St0]),
-    {_Val, St1} = walk(Block, St0),
+    {Val, St1} = walk(Block, St0),
     NewEnvs = lists:keydelete(CurEnv, #gdm_env.id, St1#gdm_state.envs),
     io:format("state ~p~n", [St1]),
     St2 = St1#gdm_state{curEnv = CurEnv - 1, envs=NewEnvs},
-    St2.
+    {Val, St2}.
 
 handle_breaker(St0) ->
     CurLoop = St0#gdm_state.curLoop,
