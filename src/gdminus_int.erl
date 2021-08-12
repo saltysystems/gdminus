@@ -29,10 +29,10 @@ walk([{Op, _Val1, _Val2} | Rest]) when
     % side-effects
     walk(Rest);
 walk([{var, {name, _L, Name}} | Rest]) ->
-    declare(Name),
+    declare(Name, var),
     walk(Rest);
 walk([{var, {name, _L, Name}, Val} | Rest]) ->
-    declare(Name, expr(Val)),
+    declare(Name, expr(Val), var),
     walk(Rest);
 walk([{'=', {name, _L, Name}, Val} | Rest]) ->
     assign(Name, expr(Val)),
@@ -125,7 +125,6 @@ local_function_block(Params, Block, Args) when length(Params) == length(Args) ->
     erlang:put(state, St0#state{curEnv=Environment + 1}),
     % Setup the local variables in the environment, called for its side effects
     setup_function_env(lists:zip(Args, Params)),
-    St = erlang:get(state),
     Ret = walk(Block),
     % Remove the temporary environment and decrement the current state
     remove_env(Environment+1),
@@ -139,7 +138,7 @@ setup_function_env([]) ->
     ok;
 setup_function_env([{Arg, Param}  | Rest]) ->
     {name, _, Name} = Param,
-    declare(Name, expr(Arg)),
+    declare(Name, expr(Arg), func),
     setup_function_env(Rest).
 
 
@@ -147,22 +146,27 @@ setup_function_env([{Arg, Param}  | Rest]) ->
 % Statements                                                                  %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% Declare the variable in the current environment.
-declare(Name) ->
-    declare(Name, null).
-declare(Name, Val) ->
+% Declare the variable in the current environment. Behaviour depends on the
+% caller - if called from a variable declaration then it checks for shadowing
+% and errors if the same variable has already been declared in this scope.
+% Otherwise if the caller is a function constructor then we just allow
+% shadowing.
+declare(Name, Caller) ->
+    declare(Name, null, Caller).
+declare(Name, Val, var) ->
+    State = erlang:get(state),
+    Env = State#state.curEnv,
+    case get_obj(var, Name, Env) of
+        {_, false} -> 
+            put_obj(var, Name, Val, Env);
+        X ->
+            io:format("Got ~p~n", [X]),
+            throw("Variable already exists in the current scope")
+    end;
+declare(Name, Val, func) ->
     State = erlang:get(state),
     Env = State#state.curEnv,
     put_obj(var, Name, Val, Env).
-    %% Preventing shadowing prevents recursion from working 
-    %% TODO: FIX for this case only
-    %case get_obj(var, Name, Env) of
-    %    {_, false} -> 
-    %        put_obj(var, Name, Val, Env);
-    %    X ->
-    %        io:format("Got ~p~n", [X]),
-    %        throw("Variable already exists in the current scope")
-    %end.
 
 % Assign a value to a variable that exists in the current environment.
 assign(Name, Val) ->
@@ -293,13 +297,13 @@ remove_env(Env) ->
     St1 = St0#state{envs=maps:remove(Env, Envs0)},
     erlang:put(state, St1).
 
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Internal functions                                                          %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 get_variable({name, _L, Var}) ->
     get_variable(Var);
 get_variable(Var) ->
-    R = get_obj(var, Var),
     {_, Val} = get_obj(var, Var),
     Val.
 
@@ -317,12 +321,19 @@ overload_add(Val1, Val2) when is_list(Val1), is_list(Val2) ->
 builtin_function("print", []) ->
     null;
 builtin_function("print", [Head | Rest]) ->
-    io:format("~p~n", [expr(Head)]),
+    logger:notice("~p~n", [expr(Head)]),
     builtin_function("print", Rest);
 builtin_function("time", []) ->
     erlang:system_time(millisecond);
 builtin_function("str", [Args]) ->
-    io_lib:format("~p", [expr(Args)]);
+    str(expr(Args));
 builtin_function(_, _Args) ->
     % Not a built-in function
     undefined.
+
+str(Args) when is_integer(Args) -> 
+    integer_to_list(Args);
+str(Args) when is_list(Args) ->
+    Args;
+str(Args) when is_float(Args) ->
+    float_to_list(Args).
