@@ -7,7 +7,7 @@
 
 -export([file/1]).
 
--record(state, {curEnv=0, curLoop=0, envs=maps:new()}).
+-record(state, {curEnv=0, curLoop=0, envs=maps:new(), breakers=maps:new()}).
 -record(env, {functions=maps:new(), variables=maps:new()}).
 
 % Open a file, walk the tree, nuke the process key in the process dict at the end.
@@ -25,7 +25,7 @@ walk([{Op, _Val1, _Val2} | Rest]) when
       Op == '+'; Op == '-'; Op == '*'; Op == '/';
       Op == '=='; Op == '>='; Op == '<='; Op == '!';
       Op == '>'; Op == '<' ->
-    % Nothing useful from walking these nodes since they're just exprs without
+    % Nothing useful from evaluating these nodes since they're just exprs without
     % side-effects
     walk(Rest);
 walk([{var, {name, _L, Name}} | Rest]) ->
@@ -50,6 +50,24 @@ walk([{Op, Block} | Rest]) when Op == 'else' ->
         ok -> walk(Rest);
         X -> 
             X % If there's a return statement nestled in there, we need to get the result out
+    end;
+walk([{while, Condition, Block} | Rest]) ->
+    Expr = expr(Condition),
+    incrementLoop(),
+    while(Expr, Condition, Block),
+    walk(Rest);
+walk([{for, {name, _Line, Name}, Iter, Block} | Rest]) ->
+    Expr = expr(Iter),
+    incrementLoop(),
+    for(Name, Expr, Block, Rest);
+walk([{Op} | _Rest]) when Op == 'break'; Op =='continue' ->
+    St0 = erlang:get(state),
+    CurLoop = St0#state.curLoop,
+    case CurLoop >= 1 of
+        true ->
+            Breakers = St0#state.breakers,
+            St1 = St0#state{breakers=maps:put(CurLoop, Op, Breakers)},
+            erlang:put(state, St1)
     end;
 walk([{func, {name, _Line, Name}, Args, Block} | Rest]) ->
     define(Name, Args, Block),
@@ -96,7 +114,9 @@ expr({'<=', Val1, Val2}) ->
 expr({'>', Val1, Val2}) -> 
     expr(Val1) > expr(Val2);
 expr({'<', Val1, Val2}) -> 
-    expr(Val1) < expr(Val2).
+    expr(Val1) < expr(Val2);
+expr(Other) ->
+    Other.
 
 function(Name, Args) ->
     case builtin_function(Name, Args) of
@@ -127,7 +147,7 @@ local_function_block(Params, Block, Args) when length(Params) == length(Args) ->
     setup_function_env(lists:zip(Args, Params)),
     Ret = walk(Block),
     % Remove the temporary environment and decrement the current state
-    remove_env(Environment+1),
+    removeEnv(Environment+1),
     St1 = erlang:get(state),
     erlang:put(state, St1#state{curEnv=Environment}),
     Ret;
@@ -192,7 +212,7 @@ ifelse(Op, Block) when Op == 'true'; Op == 'else' ->
     erlang:put(state, St0#state{curEnv=Env + 1}),
     Ret = walk(Block),
     % Remove the temporary environment and decrement the current state
-    remove_env(Env+1),
+    removeEnv(Env+1),
     St1 = erlang:get(state),
     erlang:put(state, St1#state{curEnv=Env}),
     Ret.
@@ -211,6 +231,94 @@ define(Name, Params, Block, Env) ->
         _ ->
             throw("Function is already defined")
     end.
+
+% For loops
+for(Name, Iter, Block, Rest) when is_integer(Iter) ->
+    Expanded = [ {number, null, N} || N <- lists:seq(1,Iter) ],
+    for(Name, Expanded, Block, Rest);
+for(_Name, [], _Block, Rest) ->
+    % Loop is finishe, decrement counter
+    decrementLoop(),
+    % Walk the rest of the tree
+    walk(Rest);
+for(Name, [Head|Tail] = Iter, Block, Rest) when is_list(Iter) ->
+    St0 = erlang:get(state),
+    Env = St0#state.curEnv,
+    % Create a new environment for the loop to execute in
+    erlang:put(state, St0#state{curEnv=Env + 1}),
+    % Grab the iterator and declare it within an environment
+    setup_function_env([{Head, {name, null, Name}}]),
+    % false -> No breaks, so proceed as normal. 
+    %                  1. Walk the block
+    %                  2. Remove the env
+    %                  3. Decrement current Env
+    %                  4. Proceed to next loop
+    % 'continue' -> Jump to the next iteration in the loop and walk the code
+    %               block. i.e.,
+    %                   1. Walk the block
+    %                   2. Clean up the loop breaker
+    %                   3. Remove the env
+    %                   4. Decrement current Env
+    %                   5. Proceed to next loop
+    % 'break' -> Stop the loop, and clean up. i.e.,
+    %                   1. Clean up the loop breaker
+    %                   2. Remove the env
+    %                   3. Decrement the current env
+    %                   4. Call the last iteration of the loop
+    case maybe_break() of
+        false -> 
+            walk(Block),
+            removeEnv(Env+1),
+            decrementEnv(),
+            for(Name, Tail, Block, Rest);
+        continue ->
+            walk(Block),
+            clearBreaker(),
+            removeEnv(Env+1),
+            decrementEnv(),
+            for(Name, Tail, Block, Rest);
+        break -> 
+            clearBreaker(),
+            removeEnv(Env+1),
+            decrementEnv(),
+            for(Name, [], Block, Rest)
+    end.
+
+% While loops
+% Condition is not true, so continue walking the chain
+while(false, _Condition, _Block) ->
+    decrementLoop(),
+    ok;
+% Condition is currently true, so walk the Block and check for any breakers
+while(true, Condition, Block) ->
+    incrementEnv(),
+    Env = getEnv(),
+    case maybe_break() of
+        false -> 
+            walk(Block),
+            removeEnv(Env),
+            decrementEnv(),
+            while(expr(Condition), Condition, Block);
+        continue ->
+            walk(Block),
+            clearBreaker(),
+            removeEnv(Env),
+            decrementEnv(),
+            while(expr(Condition), Condition, Block);
+        break -> 
+            clearBreaker(),
+            removeEnv(Env),
+            decrementEnv(),
+            while(false, Condition, Block)
+    end.
+
+maybe_break() -> 
+    St0 = erlang:get(state),
+    % Get the current loop and breaker for this loop, if it exists.
+    Loop = St0#state.curLoop,
+    Breakers = St0#state.breakers,
+    % if no breaker exists, just return false
+    maps:get(Loop, Breakers, false).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -291,11 +399,64 @@ put_obj(Type, Name, Val, Env) ->
      erlang:put(state, State1),
      ok.
 
-remove_env(Env) ->
+incrementLoop() ->
+    St0 = erlang:get(state),
+    Loop = St0#state.curLoop,
+    St1 = St0#state{curLoop=Loop+1},
+    erlang:put(state, St1).
+
+decrementLoop() ->
+    St0 = erlang:get(state),
+    Loop = St0#state.curLoop,
+    if
+        Loop > 0 ->
+            St1 = St0#state{curLoop=Loop-1},
+            erlang:put(state, St1);
+        true ->
+            ok
+    end.
+
+getLoop() ->
+    St0 = erlang:get(state),
+    St0#state.curLoop.
+
+removeEnv(Env) ->
     St0 = erlang:get(state),
     Envs0 = St0#state.envs,
     St1 = St0#state{envs=maps:remove(Env, Envs0)},
     erlang:put(state, St1).
+
+incrementEnv() ->
+    St0 = erlang:get(state),
+    Env = St0#state.curEnv,
+    St1 = St0#state{curEnv=Env+1},
+    erlang:put(state, St1).
+
+decrementEnv() ->
+    St0 = erlang:get(state),
+    Env = St0#state.curEnv,
+    if
+        Env > 0 ->
+            St1 = St0#state{curEnv=Env-1},
+            erlang:put(state, St1);
+        true ->
+            ok
+    end.
+
+getEnv() ->
+    St0 = erlang:get(state),
+    St0#state.curEnv.
+
+printState() ->
+    St0 = erlang:get(state),
+    io:format("Current state is: ~p~n", [St0]).
+
+clearBreaker() ->
+    St0 = erlang:get(state),
+    Br0 = St0#state.breakers,
+    Loop = St0#state.curLoop,
+    Br1 = maps:remove(Loop, Br0),
+    erlang:put(state, St0#state{breakers=Br1}).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -321,19 +482,47 @@ overload_add(Val1, Val2) when is_list(Val1), is_list(Val2) ->
 builtin_function("print", []) ->
     null;
 builtin_function("print", [Head | Rest]) ->
-    logger:notice("~p~n", [expr(Head)]),
+    io:format("~p~n", [expr(Head)]),
     builtin_function("print", Rest);
 builtin_function("time", []) ->
     erlang:system_time(millisecond);
-builtin_function("str", [Args]) ->
-    str(expr(Args));
+builtin_function("str", [Arg]) ->
+    str(expr(Arg));
+builtin_function("abs", [Arg]) ->
+    abs(expr(Arg));
+builtin_function("acos", [Arg]) ->
+    math:acos(expr(Arg));
+builtin_function("asin", [Arg]) ->
+    math:asin(expr(Arg));
+builtin_function("atan", [Arg]) ->
+    math:atan(expr(Arg));
+builtin_function("atan2", [X,Y]) ->
+    math:atan2(expr(X),expr(Y));
+builtin_function("ceil", [Arg]) ->
+    math:ceil(expr(Arg));
+builtin_function("cos", [Arg]) ->
+    math:cos(expr(Arg));
+builtin_function("cosh", [Arg]) ->
+    math:cosh(expr(Arg));
+builtin_function("exp", [Arg]) ->
+    math:exp(expr(Arg));
+builtin_function("floor", [Arg]) ->
+    math:floor(expr(Arg));
+builtin_function("fmod", [X,Y]) ->
+    math:fmod(expr(X),expr(Y));
+builtin_function("log", [Arg]) ->
+    math:log(expr(Arg));
+builtin_function("max", [X,Y]) ->
+    math:max(expr(X),expr(Y));
+builtin_function("min", [X,Y]) ->
+    math:min(expr(X),expr(Y));
 builtin_function(_, _Args) ->
     % Not a built-in function
     undefined.
 
-str(Args) when is_integer(Args) -> 
-    integer_to_list(Args);
-str(Args) when is_list(Args) ->
-    Args;
-str(Args) when is_float(Args) ->
-    float_to_list(Args).
+str(Arg) when is_integer(Arg) -> 
+    integer_to_list(Arg);
+str(Arg) when is_list(Arg) ->
+    Arg;
+str(Arg) when is_float(Arg) ->
+    float_to_list(Arg).
