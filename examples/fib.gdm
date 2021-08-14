@@ -4,6 +4,6 @@ func fib(n):
     else:
         return fib(n-1) + fib(n-2)
 var start = time()
-print(fib(25))
+print(fib(20))
 var end = time()
-print("Time: " + str(end - start) + "ms")
+print("Time: " + str(end - start) + " ms")
