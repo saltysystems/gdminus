@@ -1,11 +1,1 @@
-fixed most known errors, set expected shift to 2 after adding logical comparison operators. 
-now shift is 12 after adding 'return' statements.
---
-Not sure what to do with if/else statements. I can parse a if.. not sure how to handle else, elif, etc..
---
-Not quite parsing indents/dedents correctly. 
-update: https://stackoverflow.com/questions/20006049/recursive-descent-parser-with-indentation-and-backtracking
-update2: http://index-of.es/OS/Create%20Your%20Own%20Programming%20Language.pdf
---
-After we use & abuse the process dictionary, we need to make sure that the
-lexxer runs in a separate, new process.
+Need to ensure tab-separated scripts are lexxed correctly. AFAIK they are not currently so this will break actual GD(m) files from Godot.
