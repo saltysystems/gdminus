@@ -2,11 +2,11 @@ var x = 0
 func add_to_x(n):
     x = x + n
     return x
-
-add_to_x(10)
-
-#var y = add_to_x(10) # should be Null
+print(x)
 
 func multipi(number1, number2):
     return number1 * number2 * 3.14159
 var result = multipi(3,4)
+
+print(x)
+print(result)
