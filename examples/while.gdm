@@ -7,3 +7,5 @@ while i < 10:
     elif i == 5:
         break
     j = j + 1
+print(i)
+print(j)
