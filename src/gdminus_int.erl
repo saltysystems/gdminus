@@ -115,8 +115,13 @@ expr({'>', Val1, Val2}) ->
     expr(Val1) > expr(Val2);
 expr({'<', Val1, Val2}) -> 
     expr(Val1) < expr(Val2);
+expr({negation, Val}) ->
+    negate(expr(Val));
 expr(Other) ->
     Other.
+
+negate(Val) when is_number(Val) ->
+    0 - Val.
 
 function(Name, Args) ->
     case builtin_function(Name, Args) of
@@ -513,9 +518,34 @@ builtin_function("fmod", [X,Y]) ->
 builtin_function("log", [Arg]) ->
     math:log(expr(Arg));
 builtin_function("max", [X,Y]) ->
-    math:max(expr(X),expr(Y));
+    erlang:max(expr(X),expr(Y));
 builtin_function("min", [X,Y]) ->
-    math:min(expr(X),expr(Y));
+    erlang:min(expr(X),expr(Y));
+builtin_function("pow", [X,Y]) ->
+    math:pow(expr(X),expr(Y));
+builtin_function("randf", []) ->
+    rand:uniform();
+builtin_function("randi", []) ->
+    rand:uniform(trunc(math:pow(2,32) - 1));
+builtin_function("randomize", []) ->
+    rand:seed(exs1024s),
+    null;
+%builtin_function("range", [Arg]) ->
+%    lists:seq(0, expr(Arg) - 1);
+%builtin_function("range", [Arg1, Arg2]) ->
+%    lists:seq(expr(Arg1), expr(Arg2));
+builtin_function("round", [Arg]) ->
+    erlang:round(expr(Arg));
+builtin_function("sin", [Arg]) ->
+    math:sin(expr(Arg));
+builtin_function("sinh", [Arg]) ->
+    math:sinh(expr(Arg));
+builtin_function("sqrt", [Arg]) ->
+    math:sqrt(expr(Arg));
+builtin_function("tan", [Arg]) ->
+    math:tan(expr(Arg));
+builtin_function("tanh", [Arg]) ->
+    math:tanh(expr(Arg));
 builtin_function(_, _Args) ->
     % Not a built-in function
     undefined.
