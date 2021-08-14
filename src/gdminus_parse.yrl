@@ -83,12 +83,12 @@ expr -> expr '<=' expr : {'<=', '$1', '$3'}.
 expr -> expr '<' expr  : {'<', '$1', '$3'}.
 expr -> expr '>' expr  : {'>', '$1', '$3'}.
 expr -> unop: '$1'.
+expr -> uminus: '$1'.
 
-unop -> uminus : {negation, '$1'}. 
-unop -> 'not' expr : {negation, '$1'}.
-unop -> '!' expr : {negation, '$1'}.
+unop -> 'not' expr : {negation, '$2'}.
+unop -> '!' expr : {negation, '$2'}.
 
-uminus -> '-' expr : {negation, '$1'}. 
+uminus -> '-' expr : {negation, '$2'}. 
 
 array -> '[' ']' : [].
 array -> '[' exprlist ']' : '$2'.
