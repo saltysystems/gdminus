@@ -1,11 +1,19 @@
 var foo = "b"
+var j
 if foo == "baz":
     foo = "zip"
 elif foo is "b":
     foo = "zop"
     var bar = "zed"
-    var j = 6+14
     if j < 25:
         bar = "zoo"
+    j = 6+14
     if j < 30:
         j = 40
+print(foo)
+print(j)
+
+if j > 100:
+    print("You win!")
+else:
+    print("You lose!")
