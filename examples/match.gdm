@@ -1,0 +1,21 @@
+func result(x):
+    match x: 
+        1:
+            print("It's one!")
+        2:
+            print("It's two!")
+        _:
+            print("I don't care if it's one or two!")
+
+result(1)
+result(2)
+result(3)
+
+func no_success(y):
+    match y:
+        1:
+            print("I match 1!")
+        2:
+            print("I match 2!")
+    print("This statement is executed regardless")
+no_success(3)
