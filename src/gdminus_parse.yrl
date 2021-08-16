@@ -6,7 +6,7 @@ varDeclStmt constDecl enumDecl inheritance className keyValue array
 functioncall constructorDecl ifStmt assignmentStmt
 forStmt returnStmt whileStmt breakStmt continueStmt
 kv_items enum_list uminus unop arglist exprlist
-Block
+Block matchStmt matchcondition matchconditions
 .
 
 Terminals 
@@ -17,7 +17,7 @@ number name string
 'false' 'true' '!' 'not' 'is' '==' '>=' '<=' '!=' '>' '<'
 % Keywords
 var extends class_name const enum func indent dedent if else elif
-for in return while break continue
+for in return while break continue match
 % Other symbols
 '.' ',' '[' ']' ':' '{' '}'
 % Types
@@ -56,7 +56,7 @@ Statement -> expr            : '$1'.
 Statement -> ifStmt          : '$1'.
 Statement -> breakStmt       : '$1'.
 Statement -> continueStmt    : '$1'.
-%Statement -> matchStmt      : '$1'.
+Statement -> matchStmt       : '$1'.
 Statement -> assignmentStmt  : '$1'.
 Statement -> forStmt         : '$1'.
 Statement -> whileStmt       : '$1'.
@@ -142,6 +142,13 @@ whileStmt -> while expr ':' Block : {while, '$2', '$4'}.
 
 breakStmt -> break : {break}.
 continueStmt -> continue : {continue}.
+
+matchStmt -> match expr ':' indent matchconditions dedent : {match, '$2', '$5'}.
+
+matchconditions -> matchcondition : ['$1'].
+matchconditions -> matchconditions matchcondition : '$1' ++ ['$2'].
+
+matchcondition -> expr ':' Block : {match_cond, '$1', '$3'}. 
 
 returnStmt -> return : {return}.
 returnStmt -> return expr : {return, '$2'}.

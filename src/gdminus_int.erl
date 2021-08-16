@@ -77,6 +77,9 @@ walk([{func_call, Name, Args} | Rest]) ->
     walk(Rest);
 walk([{return, Expression} | _Rest]) ->
     expr(Expression);
+walk([{match, Expression, Conditions} | Rest]) ->
+    match(Expression, Conditions),
+    walk(Rest);
 walk([{return} | _Rest ]) ->
     null.
 
@@ -328,6 +331,30 @@ maybe_break() ->
     Breakers = St0#state.breakers,
     % if no breaker exists, just return false
     maps:get(Loop, Breakers, false).
+
+% Match statements
+% Iterate through the list of match conditions, stopping when a match is
+% successful.
+match(_Expression, []) ->
+    ok;
+match(_Expression, [{match_cond, {name, _L, "_"}, Block}]) ->
+    % Head is the last condition in the list and can match any expression
+    walk(Block);
+match(Expression, [{match_cond, Condition, Block} |Tail]) ->
+    case match(expr(Expression), expr(Condition), Block) of
+        true ->
+            ok;
+        false ->
+            match(Expression, Tail)
+    end.
+
+% If the condition is a success, then walk the block and return true so the
+% match does not continue evaluating.
+match(Val, Condition, Block) when Condition == Val ->
+    walk(Block),
+    true;
+match(Val, Condition, _Block) ->
+    false.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
