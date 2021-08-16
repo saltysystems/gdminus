@@ -44,5 +44,46 @@ Build / Test
     2> c(gdminus_scan).
     3> c(gdminus_parse).
     4> gdminus_int:file("examples/minimal.gdm")
+    
+Examples
+-----
+Calculate the first 25 [Fibonacci numbers](https://en.wikipedia.org/wiki/Fibonacci_number):
+```
+func fib(n):
+    if n < 2:
+        return 1
+    else:
+        return fib(n-1) + fib(n-2)
 
+func time():
+    return OS.get_ticks_msec()
 
+var start = time()
+print(fib(25))
+var end = time()
+print("Time: " + str(end - start) + "ms")
+```
+
+gdminus will return the output to the shell plus the final state of the code: 
+```
+7> gdminus_int:file("examples/fib.gdm").
+121393
+"Time: 2936ms"
+{state,0,0,
+       #{0 =>
+             {env,#{"fib" =>
+                        {[{name,1,"n"}],
+                         [{'if',{'<',{name,2,"n"},{number,2,2}},
+                                [{return,{number,3,1}}]},
+                          {else,[{return,{'+',{func_call,{name,5,"fib"},
+                                                         [{'-',{name,5,"n"},{number,5,1}}]},
+                                              {func_call,{name,5,"fib"},
+                                                         [{'-',{name,5,[...]},{number,5,...}}]}}}]}]},
+                    "time" =>
+                        {[],
+                         [{return,{func_call,{name,8,"OS"},
+                                             {name,8,"get_ticks_msec"},
+                                             []}}]}},
+                  #{"end" => 1629091915893,"start" => 1629091912957}}},
+       #{}}
+```
