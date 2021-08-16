@@ -59,7 +59,7 @@ walk([{Op, Expression, Block} | Rest]) when Op == 'if'; Op == 'elif' ->
         ok ->
             walk(Rest);
         X ->
-            % If there's a return statement nestled in there, we need to get the result out
+            % If there is a return statement nestled in there, we need to get the result out
             X
     end;
 walk([{Op, Block} | Rest]) when Op == 'else' ->
@@ -67,7 +67,7 @@ walk([{Op, Block} | Rest]) when Op == 'else' ->
         ok ->
             walk(Rest);
         X ->
-            % If there's a return statement nestled in there, we need to get the result out
+            % If there is a return statement nestled in there, we need to get the result out
             X
     end;
 walk([{while, Condition, Block} | Rest]) ->
