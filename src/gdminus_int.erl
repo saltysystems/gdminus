@@ -91,6 +91,10 @@ expr({number, _L, Value}) ->
     Value;
 expr({name, _L, Variable}) ->
     get_variable(Variable);
+expr({func_call, {name, _Line1, Name1}, {name, _Line2, Name2}, Args}) ->
+    % Will return a value or null if the function is only called for side
+    % effects.
+    function(Name1 ++ "." ++ Name2, Args);
 expr({func_call, {name, _Line, Name}, Args}) ->
     % Will return a value or null if the function is only called for side
     % effects.
@@ -489,8 +493,10 @@ builtin_function("print", []) ->
 builtin_function("print", [Head | Rest]) ->
     io:format("~p~n", [expr(Head)]),
     builtin_function("print", Rest);
-builtin_function("time", []) ->
+builtin_function("OS.get_ticks_msec", []) ->
     erlang:system_time(millisecond);
+builtin_function("OS.get_ticks_usec", []) ->
+    erlang:system_time(microsecond);
 builtin_function("str", [Arg]) ->
     str(expr(Arg));
 builtin_function("abs", [Arg]) ->
