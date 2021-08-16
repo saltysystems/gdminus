@@ -29,11 +29,13 @@ gdminus will probably never be as fast as Godot's built-in GDScript virtual mach
 
 In rudimentary benchmarks with OTP 24 (JIT-enabled), gdminus is easily 10x slower than Godot for many applications. 
 
-Caveats
+Known Caveats
 -----
 There have been no efforts to date to ensure gdminus rigorously follows GDScript semantics, nor have any of the re-implementations of various built-in functions been verified for correctness. Caution is advised around floating point math especially.
 
 The implementation is decidedly uncouth for Erlang code for any number of reasons. The author is rather unhappy with abusing the process dictionary to hold state in the lexer and interpreter.
+
+Embarassingly, the lexer only supports space-indented code blocks right now. 
 
 Build / Test 
 -----
