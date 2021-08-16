@@ -130,6 +130,8 @@ className -> class_name name ',' string : {class_name, '$2', '$4' }.
 className -> class_name name : {class_name, '$2' }.
 
 % Still introduces a shift conflict, which we are suppressing
+% minimum amount of glue needed to support some of the godot native functions e.g. OS.<blah> 
+functioncall -> name '.' name arglist : {func_call, '$1', '$3', '$4'}.
 functioncall -> name arglist : {func_call, '$1', '$2'}.
 
 constructorDecl -> 'func' name arglist ':' Block : {func, '$2', '$3', '$5'}.
