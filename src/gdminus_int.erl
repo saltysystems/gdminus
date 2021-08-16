@@ -40,7 +40,7 @@ walk([{Op, _Val1, _Val2} | Rest]) when
     Op == '>';
     Op == '<'
 ->
-    % Nothing useful from evaluating these nodes since they're just exprs without
+    % Nothing useful from evaluating these nodes since they are just exprs without
     % side-effects
     walk(Rest);
 walk([{var, {name, _L, Name}} | Rest]) ->
@@ -235,7 +235,7 @@ assign(Name, Val) ->
             put_obj(var, Name, Val, Where)
     end.
 
-% If 'if' or 'elif' evaluate to false, just return. Otherwise if it's true, or
+% If 'if' or 'elif' evaluate to false, just return. Otherwise if it is true, or
 % the statement is an 'else', process the indented block of statements and
 % expressions.
 ifelse(false, _Block) ->
