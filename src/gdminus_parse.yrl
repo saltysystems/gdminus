@@ -91,9 +91,11 @@ unop -> '!' expr : {negation, '$2'}.
 uminus -> '-' expr : {negation, '$2'}. 
 
 array -> '[' ']' : [].
+array -> '[' indent exprlist dedent ']' : '$3'.
 array -> '[' exprlist ']' : '$2'.
 
 keyValue -> '{' kv_items '}' : '$2'.
+keyValue -> '{' indent kv_items dedent '}' : '$3'.
 kv_items -> expr ':' expr : [{kv,'$1','$3'}].
 kv_items -> expr ':' expr ',' kv_items : [{kv, '$1', '$3'}] ++ '$5'.
 
