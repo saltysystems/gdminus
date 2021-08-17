@@ -25,7 +25,7 @@ The lexer has been implemented using [leex](https://github.com/rvirding/leex) an
 
 Performance
 -----
-gdminus will probably never be as fast as Godot's built-in GDScript virtual machine. This is due to inherent slowness in using a treewalking interpreter, overheads incurred by the BEAM virtual machine, and general programmer inefficiency :)
+gdminus will probably never be as fast as Godot's built-in GDScript virtual machine. This is due to inherent slowness in using a treewalking interpreter, overheads incurred by implementing a procedural and mutable language in the BEAM, and general programmer inefficiency :)
 
 In rudimentary benchmarks with OTP 24 (JIT-enabled), gdminus is easily 10x slower than Godot for many applications. 
 
