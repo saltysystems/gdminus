@@ -6,7 +6,7 @@ varDeclStmt constDecl enumDecl inheritance className keyValue array
 functioncall constructorDecl ifStmt assignmentStmt
 forStmt returnStmt whileStmt breakStmt continueStmt
 kv_items enum_list uminus unop arglist exprlist
-Block matchStmt matchcondition matchconditions
+Block matchStmt matchcondition matchconditions pname
 .
 
 Terminals 
@@ -65,12 +65,12 @@ Statement -> whileStmt       : '$1'.
 expr -> keyValue : '$1'.
 expr -> array : '$1'.
 expr -> string : '$1'.
-expr -> name : '$1'.
 expr -> functioncall : '$1'.
 expr -> 'true' : '$1'.
 expr -> 'false' : '$1'.
 expr -> number : '$1'.
-expr -> '(' expr ')' : '$2'.
+%expr -> '(' expr ')' : '$2'.
+expr -> pname : '$1'.
 expr -> expr '+' expr  : {'+', '$1', '$3'}.
 expr -> expr '-' expr  : {'-', '$1', '$3'}.
 expr -> expr '*' expr  : {'*', '$1', '$3'}.
@@ -90,12 +90,23 @@ unop -> '!' expr : {negation, '$2'}.
 
 uminus -> '-' expr : {negation, '$2'}. 
 
+pname -> name '.' name : {'$1', to_string('$3')}.
+pname -> name : '$1'.
+
 array -> '[' ']' : [].
+% Handles the case where the author indents everything inside the braces but not the braces themselves
 array -> '[' indent exprlist dedent ']' : '$3'.
+% Handles the case where the author indents the tailing brace and everything inside the braces
+array -> '[' indent exprlist ']' dedent : '$3'.
 array -> '[' exprlist ']' : '$2'.
 
+keyValue -> '{' '}' : {}.
 keyValue -> '{' kv_items '}' : '$2'.
+% Handles the case where the author indents everything inside the braces but not the braces themselves
 keyValue -> '{' indent kv_items dedent '}' : '$3'.
+% Handles the case where the author indents the tailing brace and everything inside the braces
+keyValue -> '{' indent kv_items '}' dedent : '$3'.
+
 kv_items -> expr ':' expr : [{kv,'$1','$3'}].
 kv_items -> expr ':' expr ',' kv_items : [{kv, '$1', '$3'}] ++ '$5'.
 
@@ -105,15 +116,10 @@ arglist -> '(' exprlist ')' : '$2'.
 exprlist -> expr : ['$1'] .
 exprlist -> exprlist ',' expr : '$1' ++ ['$3'] .
 
-varDeclStmt -> var name : {var,'$2'}.
-varDeclStmt -> var name '=' expr : {var,'$2','$4'}.
-% TODO/Maybe: Type hints 
-%varDeclStmt -> var name ':' name : {var, '$2', {type, '$4'}}.
-%varDeclStmt -> var name ':' name '=' expr : {var, '$2', '$6', {type, '$4'}}.
-% TODO/Maybe: Inferred typing.
-%varDeclStmt -> var name ':' '=' expr : {var, '$2', '$5'}.
+varDeclStmt -> var pname : {var,'$2'}.
+varDeclStmt -> var pname '=' expr : {var,'$2','$4'}.
 
-assignmentStmt -> name '=' expr : {'=', '$1', '$3'}.
+assignmentStmt -> pname '=' expr : {'=', '$1', '$3'}.
 
 constDecl -> const name '=' expr : {const, '$2', '$4'}.
 
@@ -133,8 +139,7 @@ className -> class_name name : {class_name, '$2' }.
 
 % Still introduces a shift conflict, which we are suppressing
 % minimum amount of glue needed to support some of the godot native functions e.g. OS.<blah> 
-functioncall -> name '.' name arglist : {func_call, '$1', '$3', '$4'}.
-functioncall -> name arglist : {func_call, '$1', '$2'}.
+functioncall -> pname arglist : {func_call, '$1', '$2'}.
 
 constructorDecl -> 'func' name arglist ':' Block : {func, '$2', '$3', '$5'}.
 
@@ -158,3 +163,10 @@ returnStmt -> return expr : {return, '$2'}.
 ifStmt -> 'if' expr ':' Block : {'if', '$2', '$4'}.
 ifStmt -> 'elif' expr ':' Block : {elif, '$2', '$4'}.
 ifStmt -> 'else' ':' Block : {else, '$3'}.
+
+Erlang code.
+% Convert a type to a string. e.g., accessing dictionary values via the dot
+% operator such as foo.bar is equal to foo["bar"]
+to_string({name, Line, Val}) ->
+    {string, Line, Val}.
+
