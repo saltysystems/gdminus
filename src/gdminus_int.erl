@@ -6,24 +6,36 @@
 % dictionary to process the syntax tree of GDMinus rather than threading the
 % state through every function.
 
--export([file/1]).
+-export([file/1, file/2]).
 
 -record(state, {
     curEnv = 0,
     curLoop = 0,
     envs = maps:new(),
-    breakers = maps:new()
+    breakers = maps:new(),
+    console = []
 }).
 
 -record(env, {functions = maps:new(), variables = maps:new()}).
 
 % Open a file, walk the tree, nuke the process key in the process dict at the end.
 file(Path) ->
+    file(Path, default).
+file(Path, Opts) when Opts == 'default' ->
     F = gdminus_test:parse_file(Path),
     erlang:put(state, #state{}),
     walk(F),
     % Nuke the state
-    erlang:erase(state).
+    erlang:erase(state);
+file(Path, Opts) when Opts == 'console' ->
+    F = gdminus_test:parse_file(Path),
+    erlang:put(state, #state{}),
+    walk(F),
+    % Print any console messages
+    console_print(),
+    % Nuke the state
+    erlang:erase(state),
+    ok.
 
 % Walk the tree, evaluating statements and expressions as it goes.
 walk([]) ->
@@ -100,7 +112,7 @@ walk([{match, Expression, Conditions} | Rest]) ->
     match(Expression, Conditions),
     walk(Rest);
 walk([{return} | _Rest]) ->
-    null.
+    'Null'.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Expressions                                                                 %
@@ -148,6 +160,7 @@ expr(Other) ->
 negate(Val) when is_number(Val) ->
     0 - Val.
 
+% Check to see if a function is built in, otherwise check the function table.
 function(Name, Args) ->
     case builtin_function(Name, Args) of
         undefined ->
@@ -157,44 +170,6 @@ function(Name, Args) ->
             Value
     end.
 
-local_function(Name, Args) ->
-    St0 = erlang:get(state),
-    Environment = St0#state.curEnv,
-    % Functions are only defined in the local scope (til we have Class support?)
-    Return =
-        case get_obj(func, Name, Environment) of
-            {_, false} ->
-                throw(
-                    "Locally scoped function undefined and built-in not found"
-                );
-            {_, {Params, Block}} ->
-                local_function_block(Params, Block, Args)
-        end,
-    Return.
-
-local_function_block(Params, Block, Args) when
-    length(Params) == length(Args)
-->
-    St0 = erlang:get(state),
-    Environment = St0#state.curEnv,
-    erlang:put(state, St0#state{curEnv = Environment + 1}),
-    % Setup the local variables in the environment, called for its side effects
-    setup_function_env(lists:zip(Args, Params)),
-    Ret = walk(Block),
-    % Remove the temporary environment and decrement the current state
-    removeEnv(Environment + 1),
-    St1 = erlang:get(state),
-    erlang:put(state, St1#state{curEnv = Environment}),
-    Ret;
-local_function_block(_Params, _Block, _Args) ->
-    throw("Could not evaluate function: Wrong number of arguments").
-
-setup_function_env([]) ->
-    ok;
-setup_function_env([{Arg, Param} | Rest]) ->
-    {name, _, Name} = Param,
-    declare(Name, expr(Arg), func),
-    setup_function_env(Rest).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Statements                                                                  %
@@ -206,7 +181,7 @@ setup_function_env([{Arg, Param} | Rest]) ->
 % Otherwise if the caller is a function constructor then we just allow
 % shadowing.
 declare(Name, Caller) ->
-    declare(Name, null, Caller).
+    declare(Name, 'Null', Caller).
 
 declare(Name, Val, var) ->
     State = erlang:get(state),
@@ -270,7 +245,7 @@ define(Name, Params, Block, Env) ->
 
 % For loops
 for(Name, Iter, Block, Rest) when is_integer(Iter) ->
-    Expanded = [{number, null, N} || N <- lists:seq(1, Iter)],
+    Expanded = [{number, 'Null', N} || N <- lists:seq(1, Iter)],
     for(Name, Expanded, Block, Rest);
 for(_Name, [], _Block, Rest) ->
     % Loop is finishe, decrement counter
@@ -283,7 +258,7 @@ for(Name, [Head | Tail] = Iter, Block, Rest) when is_list(Iter) ->
     % Create a new environment for the loop to execute in
     erlang:put(state, St0#state{curEnv = Env + 1}),
     % Grab the iterator and declare it within an environment
-    setup_function_env([{Head, {name, null, Name}}]),
+    setup_function_env([{Head, {name, 'Null', Name}}]),
     % false -> No breaks, so proceed as normal.
     %                  1. Walk the block
     %                  2. Remove the env
@@ -348,14 +323,6 @@ while(true, Condition, Block) ->
             while(false, Condition, Block)
     end.
 
-maybe_break() ->
-    St0 = erlang:get(state),
-    % Get the current loop and breaker for this loop, if it exists.
-    Loop = St0#state.curLoop,
-    Breakers = St0#state.breakers,
-    % if no breaker exists, just return false
-    maps:get(Loop, Breakers, false).
-
 % Match statements
 % Iterate through the list of match conditions, stopping when a match is
 % successful.
@@ -377,7 +344,7 @@ match(Expression, [{match_cond, Condition, Block} | Tail]) ->
 match(Val, Condition, Block) when Condition == Val ->
     walk(Block),
     true;
-match(Val, Condition, _Block) ->
+match(_Val, _Condition, _Block) ->
     false.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -431,7 +398,7 @@ get_obj(Type, Name, EnvID) when EnvID > 0 ->
 % Puts an object into the state table. Does not check scope rules, previous
 % declarations, etc.
 put_obj(Type, Name, Env) ->
-    put_obj(Type, Name, null, Env).
+    put_obj(Type, Name, 'Null', Env).
 
 put_obj(Type, Name, Val, Env) ->
     State = erlang:get(state),
@@ -519,6 +486,24 @@ clearBreaker() ->
     Br1 = maps:remove(Loop, Br0),
     erlang:put(state, St0#state{breakers = Br1}).
 
+% Append any "print" statements or otherwise to the Console 
+console_append(Val) ->
+    St0 = erlang:get(state),
+    Console0 = St0#state.console,
+    St1 = St0#state{console=[ Val | Console0 ]},
+    erlang:put(state, St1).
+
+% Print any messages 
+console_print() -> 
+    St0 = erlang:get(state),
+    Console = St0#state.console,
+    console_print(lists:reverse(Console)).
+console_print([]) ->
+    ok;
+console_print([H|T]) ->
+    io:format("~p~n", [H]),
+    console_print(T).
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Internal functions                                                          %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -535,13 +520,60 @@ overload_add(Val1, Val2) when is_number(Val1), is_number(Val2) ->
 overload_add(Val1, Val2) when is_list(Val1), is_list(Val2) ->
     Val1 ++ Val2.
 
+maybe_break() ->
+    St0 = erlang:get(state),
+    % Get the current loop and breaker for this loop, if it exists.
+    Loop = St0#state.curLoop,
+    Breakers = St0#state.breakers,
+    % if no breaker exists, just return false
+    maps:get(Loop, Breakers, false).
+
+local_function(Name, Args) ->
+    St0 = erlang:get(state),
+    Environment = St0#state.curEnv,
+    % Functions are only defined in the local scope (til we have Class support?)
+    Return =
+        case get_obj(func, Name, Environment) of
+            {_, false} ->
+                throw(
+                    "Locally scoped function undefined and built-in not found"
+                );
+            {_, {Params, Block}} ->
+                local_function_block(Params, Block, Args)
+        end,
+    Return.
+
+local_function_block(Params, Block, Args) when
+    length(Params) == length(Args)
+->
+    St0 = erlang:get(state),
+    Environment = St0#state.curEnv,
+    erlang:put(state, St0#state{curEnv = Environment + 1}),
+    % Setup the local variables in the environment, called for its side effects
+    setup_function_env(lists:zip(Args, Params)),
+    Ret = walk(Block),
+    % Remove the temporary environment and decrement the current state
+    removeEnv(Environment + 1),
+    St1 = erlang:get(state),
+    erlang:put(state, St1#state{curEnv = Environment}),
+    Ret;
+local_function_block(_Params, _Block, _Args) ->
+    throw("Could not evaluate function: Wrong number of arguments").
+
+setup_function_env([]) ->
+    ok;
+setup_function_env([{Arg, Param} | Rest]) ->
+    {name, _, Name} = Param,
+    declare(Name, expr(Arg), func),
+    setup_function_env(Rest).
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Built-in functions callable from GDMinus                                    %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 builtin_function("print", []) ->
-    null;
+    'Null';
 builtin_function("print", [Head | Rest]) ->
-    io:format("~p~n", [expr(Head)]),
+    console_append(expr(Head)),
     builtin_function("print", Rest);
 builtin_function("OS.get_ticks_msec", []) ->
     erlang:system_time(millisecond);
@@ -585,11 +617,11 @@ builtin_function("randi", []) ->
     rand:uniform(trunc(math:pow(2, 32) - 1));
 builtin_function("randomize", []) ->
     rand:seed(exs1024s),
-    null;
-%builtin_function("range", [Arg]) ->
-%    lists:seq(0, expr(Arg) - 1);
-%builtin_function("range", [Arg1, Arg2]) ->
-%    lists:seq(expr(Arg1), expr(Arg2));
+    'Null';
+builtin_function("range", [Arg]) ->
+    lists:seq(0, expr(Arg) - 1);
+builtin_function("range", [Arg1, Arg2]) ->
+    lists:seq(expr(Arg1), expr(Arg2));
 builtin_function("round", [Arg]) ->
     erlang:round(expr(Arg));
 builtin_function("sin", [Arg]) ->
