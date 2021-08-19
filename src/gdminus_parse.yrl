@@ -69,7 +69,7 @@ expr -> functioncall : '$1'.
 expr -> 'true' : '$1'.
 expr -> 'false' : '$1'.
 expr -> number : '$1'.
-%expr -> '(' expr ')' : '$2'.
+expr -> '(' expr ')' : '$2'.
 expr -> pname : '$1'.
 expr -> expr '+' expr  : {'+', '$1', '$3'}.
 expr -> expr '-' expr  : {'-', '$1', '$3'}.
