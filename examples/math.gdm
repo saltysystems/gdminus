@@ -1,6 +1,7 @@
 var x = -3
 var y = 4
 var z = -0.3
+var f = (14 / 3 + (7 * 8)) - (9)
 print(abs(x))
 print(acos(z))
 print(asin(z))
@@ -18,11 +19,11 @@ print(min(z,y))
 print(pow(x,y))
 print(randf())
 print(randi())
-print(randomize())
+print(randomize()) # seeds the RNG, should return Null
 print(round(2.3))
 print(sin(y))
 print(sinh(y))
 print(tan(y))
 print(tanh(y))
-#print(range(4))
-#print(range(2,5))
+print(range(4))
+print(range(2,5))
