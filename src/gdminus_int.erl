@@ -6,7 +6,7 @@
 % dictionary to process the syntax tree of GDMinus rather than threading the
 % state through every function.
 
--export([file/1, file/2]).
+-export([file/1, file/2, do/1]).
 
 -record(state, {
     curEnv = 0,
@@ -16,26 +16,37 @@
     console = []
 }).
 
+-record(console, {
+          stdout = [],
+          stderr = []
+         }).
+
 -record(env, {functions = maps:new(), variables = maps:new()}).
+
+init() ->
+    erlang:put(state, #state{}),
+    erlang:put(console, #console{}).
+    
+% allow a user to install a custom function into the function table
+%install(FunName, Params, Fun) ->
+
+do(Stmt) ->
+    init(),
+    {ok, Tokens, _L} = gdminus_scan:string(Stmt),
+    NormalForm = gdminus_scan:normalize(Tokens), % fix up the indents and dedents
+    {ok, Tree} = gdminus_parse:parse(NormalForm),
+    walk(Tree),
+    Stdout = console_get(stdout),
+    Stderr = console_get(stderr),
+    {Stdout, Stderr, erlang:erase(state)}.
 
 % Open a file, walk the tree, nuke the process key in the process dict at the end.
 file(Path) ->
     file(Path, default).
 file(Path, Opts) when Opts == 'default' ->
-    F = gdminus_test:parse_file(Path),
-    erlang:put(state, #state{}),
-    walk(F),
-    % Nuke the state
-    erlang:erase(state);
-file(Path, Opts) when Opts == 'console' ->
-    F = gdminus_test:parse_file(Path),
-    erlang:put(state, #state{}),
-    walk(F),
-    % Print any console messages
-    console_print(),
-    % Nuke the state
-    erlang:erase(state),
-    ok.
+    {ok, F} = file:read_file(Path),
+    Fn = binary:bin_to_list(F),
+    do(Fn).
 
 % Walk the tree, evaluating statements and expressions as it goes.
 walk([]) ->
@@ -124,7 +135,10 @@ expr({number, _L, Value}) ->
     Value;
 expr({name, _L, Variable}) ->
     get_variable(Variable);
-expr({func_call, {name, _Line1, Name1}, {name, _Line2, Name2}, Args}) ->
+%TODO : Try to understand if converting the 2nd arg after the '.' to a string
+%       in the parser is bad for function calls. Might simply be "weird but
+%       harmless"
+expr({func_call, {{name, _Line1, Name1}, {string, _Line2, Name2}}, Args}) ->
     % Will return a value or null if the function is only called for side
     % effects.
     function(Name1 ++ "." ++ Name2, Args);
@@ -162,10 +176,10 @@ negate(Val) when is_number(Val) ->
 
 % Check to see if a function is built in, otherwise check the function table.
 function(Name, Args) ->
-    case builtin_function(Name, Args) of
+    case local_function(Name, Args) of
         undefined ->
             % Not a built-in, continue from the local function table
-            local_function(Name, Args);
+            builtin_function(Name, eval(Args));
         Value ->
             Value
     end.
@@ -488,21 +502,44 @@ clearBreaker() ->
 
 % Append any "print" statements or otherwise to the Console 
 console_append(Val) ->
-    St0 = erlang:get(state),
-    Console0 = St0#state.console,
-    St1 = St0#state{console=[ Val | Console0 ]},
-    erlang:put(state, St1).
+    console_append(Val, stdout).
+console_append(Val, Channel) when Channel == 'stdout' ->
+    St0 = erlang:get(console),
+    Console0 = St0#console.stdout,
+    St1 = St0#console{stdout=[ Val | Console0 ]},
+    erlang:put(console, St1);
+console_append(Val, Channel) when Channel == 'stderr' ->
+    St0 = erlang:get(console),
+    Console0 = St0#console.stderr,
+    St1 = St0#console{stderr=[ Val | Console0 ]},
+    erlang:put(console, St1).
 
-% Print any messages 
-console_print() -> 
-    St0 = erlang:get(state),
-    Console = St0#state.console,
-    console_print(lists:reverse(Console)).
-console_print([]) ->
-    ok;
-console_print([H|T]) ->
-    io:format("~p~n", [H]),
-    console_print(T).
+console_get(Channel) ->
+    St0 = erlang:get(console),
+    case Channel of
+        stdout ->
+            lists:reverse(St0#console.stdout);
+        stderr ->
+            lists:reverse(St0#console.stderr)
+    end.
+
+%% Print any messages
+%console_print() ->
+%    console_print(stdout).
+%
+%console_print(Opt) when Opt == 'stdout' -> 
+%    St0 = erlang:get(console),
+%    Console = St0#console.stdout,
+%    console_print(lists:reverse(Console));
+%console_print(Opt) when Opt == 'stderr' -> 
+%    St0 = erlang:get(console),
+%    Console = St0#console.stderr,
+%    console_print(lists:reverse(Console));
+%console_print([]) ->
+%    ok;
+%console_print([H|T]) ->
+%    io:format("~p~n", [H]),
+%    console_print(T).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Internal functions                                                          %
@@ -535,9 +572,7 @@ local_function(Name, Args) ->
     Return =
         case get_obj(func, Name, Environment) of
             {_, false} ->
-                throw(
-                    "Locally scoped function undefined and built-in not found"
-                );
+                undefined;
             {_, {Params, Block}} ->
                 local_function_block(Params, Block, Args)
         end,
@@ -567,50 +602,58 @@ setup_function_env([{Arg, Param} | Rest]) ->
     declare(Name, expr(Arg), func),
     setup_function_env(Rest).
 
+eval(List) when is_list(List) ->
+    eval(List, []).
+eval([], Acc) ->
+    lists:reverse(Acc);
+eval([H|T], Acc) ->
+    eval(T, [expr(H)|Acc]).
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Built-in functions callable from GDMinus                                    %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 builtin_function("print", []) ->
     'Null';
 builtin_function("print", [Head | Rest]) ->
-    console_append(expr(Head)),
+    console_append(Head),
     builtin_function("print", Rest);
 builtin_function("OS.get_ticks_msec", []) ->
     erlang:system_time(millisecond);
 builtin_function("OS.get_ticks_usec", []) ->
     erlang:system_time(microsecond);
 builtin_function("str", [Arg]) ->
-    str(expr(Arg));
+    str(Arg);
 builtin_function("abs", [Arg]) ->
-    abs(expr(Arg));
+    abs(Arg);
 builtin_function("acos", [Arg]) ->
-    math:acos(expr(Arg));
+    math:acos(Arg);
 builtin_function("asin", [Arg]) ->
-    math:asin(expr(Arg));
+    math:asin(Arg);
 builtin_function("atan", [Arg]) ->
-    math:atan(expr(Arg));
+    math:atan(Arg);
 builtin_function("atan2", [X, Y]) ->
-    math:atan2(expr(X), expr(Y));
+    math:atan2(X, Y);
 builtin_function("ceil", [Arg]) ->
-    math:ceil(expr(Arg));
+    math:ceil(Arg);
 builtin_function("cos", [Arg]) ->
-    math:cos(expr(Arg));
+    math:cos(Arg);
 builtin_function("cosh", [Arg]) ->
-    math:cosh(expr(Arg));
+    math:cosh(Arg);
 builtin_function("exp", [Arg]) ->
-    math:exp(expr(Arg));
+    math:exp(Arg);
 builtin_function("floor", [Arg]) ->
-    math:floor(expr(Arg));
+    math:floor(Arg);
 builtin_function("fmod", [X, Y]) ->
-    math:fmod(expr(X), expr(Y));
+    math:fmod(X,Y);
 builtin_function("log", [Arg]) ->
-    math:log(expr(Arg));
+    math:log(Arg);
 builtin_function("max", [X, Y]) ->
-    erlang:max(expr(X), expr(Y));
+    erlang:max(X,Y);
 builtin_function("min", [X, Y]) ->
-    erlang:min(expr(X), expr(Y));
+    erlang:min(X,Y);
 builtin_function("pow", [X, Y]) ->
-    math:pow(expr(X), expr(Y));
+    math:pow(X,Y);
 builtin_function("randf", []) ->
     rand:uniform();
 builtin_function("randi", []) ->
@@ -619,24 +662,24 @@ builtin_function("randomize", []) ->
     rand:seed(exs1024s),
     'Null';
 builtin_function("range", [Arg]) ->
-    lists:seq(0, expr(Arg) - 1);
+    lists:seq(0, Arg - 1);
 builtin_function("range", [Arg1, Arg2]) ->
-    lists:seq(expr(Arg1), expr(Arg2));
+    lists:seq(Arg1, Arg2);
 builtin_function("round", [Arg]) ->
-    erlang:round(expr(Arg));
+    erlang:round(Arg);
 builtin_function("sin", [Arg]) ->
-    math:sin(expr(Arg));
+    math:sin(Arg);
 builtin_function("sinh", [Arg]) ->
-    math:sinh(expr(Arg));
+    math:sinh(Arg);
 builtin_function("sqrt", [Arg]) ->
-    math:sqrt(expr(Arg));
+    math:sqrt(Arg);
 builtin_function("tan", [Arg]) ->
-    math:tan(expr(Arg));
+    math:tan(Arg);
 builtin_function("tanh", [Arg]) ->
-    math:tanh(expr(Arg));
+    math:tanh(Arg);
 builtin_function(_, _Args) ->
-    % Not a built-in function
-    undefined.
+    % Not a built-in function, and presumably the local function call also failed.
+    throw("Function not defined or not implemented").
 
 str(Arg) when is_integer(Arg) ->
     integer_to_list(Arg);
