@@ -1,6 +1,7 @@
 -module(gdminus_test).
 
 -export([
+    regenerate/1,
     regenerate/0,
     lex_file/1,
     parse_file/1,
@@ -21,6 +22,9 @@ interpret_file(File) ->
     AST = parse_file(File),
     gdminus_interpreter:walk(AST).
 
+regenerate(verbose) ->
+    leex:file("src/gdminus_scan.xrl"),
+    yecc:file("src/gdminus_parse.yrl", {verbose, true}).
 regenerate() ->
     leex:file("src/gdminus_scan.xrl"),
     yecc:file("src/gdminus_parse.yrl").
