@@ -55,6 +55,9 @@ normalize(List) ->
 	lists:reverse(lists:flatten(normalize(List, []))).
 
 normalize([], Acc) ->
+    erlang:erase(mode),
+    erlang:erase(s_tabstop),
+    erlang:erase(s_indent),
 	Acc;
 normalize([{Type, Line, Number} | T ], Acc) when Type == indent; Type == dedent ->
 	%io:format("Found an indent or dedent token~n"),
@@ -77,12 +80,14 @@ explode({Type, Line, Number}, Acc) ->
 	NewAcc = [ {Type, Line} | Acc ],
 	explode({Type, Line, Number - 1}, NewAcc).
 	
-	
-tab_or_space([Head|Rest]) when Head == '\n' ->
+
+tab_or_space([Head|Rest]) when Head == 10 ->
 	tab_or_space(Rest);
-tab_or_space([Head|_Rest]) when Head == '\t' ->
+tab_or_space(["\t"|_Rest]) ->
 	tab;
-tab_or_space(_) -> 
+tab_or_space("\t") ->
+	tab;
+tab_or_space(_) ->
 	space.
 	
 
@@ -143,7 +148,6 @@ evaluate_indent_level_tab(Chars, Line) ->
 	% Represents the indentation level. The regex match looks for a newline
 	% followed by any number of \t chars
 	CurLevel = length(Chars) - 1,
-    io:format("Found ~p on line ~p~n", [Chars, Line+1]),
 
 	% Compare the existing level to this one
 	PrevLevel = 
@@ -153,10 +157,8 @@ evaluate_indent_level_tab(Chars, Line) ->
 			L -> L
 		end,
 	% Update with the current level
-    io:format("Previous level is ~p~n", [PrevLevel]),
     put(tablev, CurLevel),
 
-    io:format("Prev: ~p, Cur: ~p, Line: ~p~n", [PrevLevel,CurLevel, Line+1]),
 	scope_token(PrevLevel, CurLevel, Line).
 
 % If the previous level > current level, emit one or more dedent tokens
