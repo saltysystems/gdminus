@@ -6,7 +6,7 @@
 % dictionary to process the syntax tree of GDMinus rather than threading the
 % state through every function.
 
--export([file/1, file/2, do/1]).
+-export([file/1, file/2, do/1, tokenize_file/1, parse_file/1]).
 
 -record(state, {
     curEnv = 0,
@@ -27,8 +27,17 @@ init() ->
     erlang:put(state, #state{}),
     erlang:put(console, #console{}).
     
-% allow a user to install a custom function into the function table
-%install(FunName, Params, Fun) ->
+tokenize_file(Path) ->
+    {ok, F} = file:read_file(Path),
+    Fn = binary:bin_to_list(F),
+    {ok, Tokens, _L} = gdminus_scan:string(Fn),
+    gdminus_scan:normalize(Tokens). % Fix up indents/dedents
+
+parse_file(Path) -> 
+    Tokens = tokenize_file(Path),
+    {ok, Tree} =  gdminus_parse:parse(Tokens),
+    Tree.
+
 
 do(Stmt) ->
     init(),
