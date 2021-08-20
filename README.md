@@ -43,11 +43,13 @@ general programmer inefficiency :)
 
 The first 25 numbers in the fibonacci sequence using the recursive
 implementation, for example:
-| Implementation             | Speed |
-| -------------------------- | ----- |
-| Godot                      | 88ms  |
-| gdminus (OTP/24 with JIT)  | 673ms |
-| gdminus (OTP/22)           | 713ms |
+
+Implementation             | Speed 
+-------------------------- | ----- 
+Godot                      | 88ms  
+gdminus (OTP/24 with JIT)  | 673ms 
+gdminus (OTP/22)           | 713ms 
+
 (on an i7-7600U with absolutely no performance optimizations)
 
 
