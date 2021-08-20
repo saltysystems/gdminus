@@ -55,9 +55,9 @@ normalize(List) ->
 	lists:reverse(lists:flatten(normalize(List, []))).
 
 normalize([], Acc) ->
-    erlang:erase(mode),
-    erlang:erase(s_tabstop),
-    erlang:erase(s_indent),
+	erlang:erase(mode),
+	erlang:erase(s_tabstop),
+	erlang:erase(s_indent),
 	Acc;
 normalize([{Type, Line, Number} | T ], Acc) when Type == indent; Type == dedent ->
 	%io:format("Found an indent or dedent token~n"),
