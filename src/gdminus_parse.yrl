@@ -91,6 +91,7 @@ unop -> '!' expr : {negation, '$2'}.
 uminus -> '-' expr : {negation, '$2'}. 
 
 pname -> name '.' name : {'$1', to_string('$3')}.
+pname -> name '[' expr ']' : {'$1', $3}.
 pname -> name : '$1'.
 
 array -> '[' ']' : [].
