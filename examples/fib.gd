@@ -1,6 +1,6 @@
 func _ready():
     var start = time()
-    print(fib(30))
+    print(fib(25))
     var end = time()
     print("Time: " + str(end - start) + "ms")
 
