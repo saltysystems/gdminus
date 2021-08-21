@@ -90,8 +90,8 @@ unop -> '!' expr : {negation, '$2'}.
 
 uminus -> '-' expr : {negation, '$2'}. 
 
-pname -> name '.' name : {'$1', to_string('$3')}.
-pname -> name '[' expr ']' : {'$1', $3}.
+pname -> name '.' name : {kv, '$1', to_string('$3')}.
+pname -> name '[' expr ']' : {kv, '$1', '$3'}.
 pname -> name : '$1'.
 
 array -> '[' ']' : [].
@@ -101,12 +101,12 @@ array -> '[' indent exprlist dedent ']' : '$3'.
 array -> '[' indent exprlist ']' dedent : '$3'.
 array -> '[' exprlist ']' : '$2'.
 
-keyValue -> '{' '}' : {}.
-keyValue -> '{' kv_items '}' : '$2'.
+keyValue -> '{' '}' : {dict, []}.
+keyValue -> '{' kv_items '}' : {dict, '$2'}.
 % Handles the case where the author indents everything inside the braces but not the braces themselves
-keyValue -> '{' indent kv_items dedent '}' : '$3'.
+keyValue -> '{' indent kv_items dedent '}' : {dict, '$3'}.
 % Handles the case where the author indents the tailing brace and everything inside the braces
-keyValue -> '{' indent kv_items '}' dedent : '$3'.
+keyValue -> '{' indent kv_items '}' dedent : {dict, '$3'}.
 
 kv_items -> expr ':' expr : [{kv,'$1','$3'}].
 kv_items -> expr ':' expr ',' kv_items : [{kv, '$1', '$3'}] ++ '$5'.
