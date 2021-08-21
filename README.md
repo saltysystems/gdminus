@@ -40,10 +40,10 @@ This is due to inherent slowness in using a treewalking interpreter, overheads
 incurred by implementing a procedural and mutable language in the BEAM, and
 general programmer inefficiency :)
 
-The first 25 numbers in the fibonacci sequence using the recursive
-implementation, for example:
+Calculating the first 25 numbers in the Fibonacci sequence using the recursive
+implementation yields:
 
-Implementation             | Speed 
+Implementation             | Time
 -------------------------- | ----- 
 Godot                      | 88ms  
 gdminus (OTP/24 with JIT)  | 673ms 
