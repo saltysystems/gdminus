@@ -20,12 +20,12 @@ Current State
 -----
 A working lexer, parser and tree-walking interpreter have been developed that
 support a generous subset of the language including:
-  * Arithmetic expressions and Boolean operators
+  * Arithmetic expressions and Boolean comparison operators.
   * If/Else statements
   * While/For statements with `break` and `continue`
   * Match statements
-  * Functions
-  * A number of built-in functions. See e.g. `examples/fib.gd` or `examples/math.gd` 
+  * Functions, including a number of built-in functions. See e.g. `examples/fib.gd` or `examples/math.gd` 
+  * Dictionaries and arrays
 
 The lexer has been implemented using [leex](https://github.com/rvirding/leex)
 and the parser is implemented via [yecc](https://erlang.org/doc/man/yecc.html).
