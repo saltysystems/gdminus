@@ -13,7 +13,7 @@ gdminus will probably not implement keywords supporting coroutines, signals, or
 networking RPC. These include `yield`, `signal`, `remote`, `master`, `puppet`,
 and so on.
 
-gdminus does not currently support classes, but may in the future if they are too onerous to implement.
+gdminus does not currently support classes, but may in the future if they are not too onerous to implement.
 
 Current State
 -----
