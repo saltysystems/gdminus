@@ -17,32 +17,33 @@
 }).
 
 -record(console, {
-          stdout = [],
-          stderr = []
-         }).
+    stdout = [],
+    stderr = []
+}).
 
 -record(env, {functions = maps:new(), variables = maps:new()}).
 
 init() ->
     erlang:put(state, #state{}),
     erlang:put(console, #console{}).
-    
+
 tokenize_file(Path) ->
     {ok, F} = file:read_file(Path),
     Fn = binary:bin_to_list(F),
     {ok, Tokens, _L} = gdminus_scan:string(Fn),
-    gdminus_scan:normalize(Tokens). % Fix up indents/dedents
+    % Fix up indents/dedents
+    gdminus_scan:normalize(Tokens).
 
-parse_file(Path) -> 
+parse_file(Path) ->
     Tokens = tokenize_file(Path),
-    {ok, Tree} =  gdminus_parse:parse(Tokens),
+    {ok, Tree} = gdminus_parse:parse(Tokens),
     Tree.
-
 
 do(Stmt) ->
     init(),
     {ok, Tokens, _L} = gdminus_scan:string(Stmt),
-    NormalForm = gdminus_scan:normalize(Tokens), % fix up the indents and dedents
+    % fix up the indents and dedents
+    NormalForm = gdminus_scan:normalize(Tokens),
     {ok, Tree} = gdminus_parse:parse(NormalForm),
     walk(Tree),
     Stdout = console_get(stdout),
@@ -52,6 +53,7 @@ do(Stmt) ->
 % Open a file, walk the tree, nuke the process key in the process dict at the end.
 file(Path) ->
     file(Path, default).
+
 file(Path, Opts) when Opts == 'default' ->
     {ok, F} = file:read_file(Path),
     Fn = binary:bin_to_list(F),
@@ -185,7 +187,8 @@ expr({'<', Val1, Val2}) ->
 expr({negation, Val}) ->
     negate(expr(Val));
 expr({dict, List}) ->
-    dictionary(List); % Declaration
+    % Declaration
+    dictionary(List);
 expr({kv, Name, Key}) ->
     keyvalue(expr(Name), expr(Key));
 expr(List) when is_list(List) ->
@@ -211,12 +214,13 @@ function(Name, Args) ->
 % Key value access can either be for an array or a dictionary
 % which have slightly diff semantics
 keyvalue(Name, Key) when is_map(Name) ->
-     maps:get(Key, Name);
+    maps:get(Key, Name);
 keyvalue(Name, Key) when is_list(Name) ->
-     lists:nth(Key + 1, Name). % it seems like Arrays should
-                                     % have their state stored as the
-                                     % resolved variables.
+    % it seems like Arrays should
+    lists:nth(Key + 1, Name).
 
+% have their state stored as the
+% resolved variables.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Statements                                                                  %
@@ -257,14 +261,14 @@ assign(Name, Val) ->
             put_obj(var, Name, Val, Where)
     end.
 
-
 dictionary([]) ->
     maps:new();
 dictionary(List) ->
     dictionary(List, maps:new()).
+
 dictionary([], Map) ->
     Map;
-dictionary([{kv, {_Type1, _Line1, Key}, Val} |T], Map1) ->
+dictionary([{kv, {_Type1, _Line1, Key}, Val} | T], Map1) ->
     Map2 = maps:put(Key, expr(Val), Map1),
     dictionary(T, Map2).
 
@@ -279,11 +283,11 @@ kv_update(Name, List, Key, Val) when is_list(List) ->
     % list isn't that great. 3 operations on the list itself to
     % generate List1 seems like it would be a performance sap.
     Index = lists:nth(Key + 1, List),
-    List1 = lists:sublist(List, Index - 1) 
-            ++ [Val] 
-            ++ lists:nthtail(Index,List),
+    List1 =
+        lists:sublist(List, Index - 1) ++
+            [Val] ++
+            lists:nthtail(Index, List),
     assign(Name, List1).
-
 
 % If 'if' or 'elif' evaluate to false, just return. Otherwise if it is true, or
 % the statement is an 'else', process the indented block of statements and
@@ -564,18 +568,19 @@ clearBreaker() ->
     Br1 = maps:remove(Loop, Br0),
     erlang:put(state, St0#state{breakers = Br1}).
 
-% Append any "print" statements or otherwise to the Console 
+% Append any "print" statements or otherwise to the Console
 console_append(Val) ->
     console_append(Val, stdout).
+
 console_append(Val, Channel) when Channel == 'stdout' ->
     St0 = erlang:get(console),
     Console0 = St0#console.stdout,
-    St1 = St0#console{stdout=[ Val | Console0 ]},
+    St1 = St0#console{stdout = [Val | Console0]},
     erlang:put(console, St1);
 console_append(Val, Channel) when Channel == 'stderr' ->
     St0 = erlang:get(console),
     Console0 = St0#console.stderr,
-    St1 = St0#console{stderr=[ Val | Console0 ]},
+    St1 = St0#console{stderr = [Val | Console0]},
     erlang:put(console, St1).
 
 console_get(Channel) ->
@@ -591,11 +596,11 @@ console_get(Channel) ->
 %console_print() ->
 %    console_print(stdout).
 %
-%console_print(Opt) when Opt == 'stdout' -> 
+%console_print(Opt) when Opt == 'stdout' ->
 %    St0 = erlang:get(console),
 %    Console = St0#console.stdout,
 %    console_print(lists:reverse(Console));
-%console_print(Opt) when Opt == 'stderr' -> 
+%console_print(Opt) when Opt == 'stderr' ->
 %    St0 = erlang:get(console),
 %    Console = St0#console.stderr,
 %    console_print(lists:reverse(Console));
@@ -670,11 +675,11 @@ eval(List) when is_list(List) ->
     eval(List, []);
 eval(Expr) ->
     expr(Expr).
+
 eval([], Acc) ->
     lists:reverse(Acc);
-eval([H|T], Acc) ->
-    eval(T, [expr(H)|Acc]).
-
+eval([H | T], Acc) ->
+    eval(T, [expr(H) | Acc]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Built-in functions callable from GDMinus                                    %
@@ -716,15 +721,15 @@ builtin_function("exp", [Arg]) ->
 builtin_function("floor", [Arg]) ->
     math:floor(Arg);
 builtin_function("fmod", [X, Y]) ->
-    math:fmod(X,Y);
+    math:fmod(X, Y);
 builtin_function("log", [Arg]) ->
     math:log(Arg);
 builtin_function("max", [X, Y]) ->
-    erlang:max(X,Y);
+    erlang:max(X, Y);
 builtin_function("min", [X, Y]) ->
-    erlang:min(X,Y);
+    erlang:min(X, Y);
 builtin_function("pow", [X, Y]) ->
-    math:pow(X,Y);
+    math:pow(X, Y);
 builtin_function("randf", []) ->
     rand:uniform();
 builtin_function("randi", []) ->
