@@ -1,0 +1,16 @@
+var d = {
+    "A key": "A value", 
+    28: [1, 2, 3],
+    "Banana": 14
+    }
+var q = d["A key"]
+print(q)
+d["A key"] = "Another value"
+print(d.Banana)
+
+var a = [1,2,3,4]
+var b = a[0]
+a[0] = 10
+print(b)
+var c = a[0]
+print(c)
