@@ -78,8 +78,15 @@ walk([{Op, _Val1, _Val2} | Rest]) when
 walk([{var, {name, _L, Name}} | Rest]) ->
     declare(Name, var),
     walk(Rest);
+walk([{var, {name, _L, Name}, {dict, KVItems}} | Rest]) ->
+    declare(Name, dictionary(KVItems), var),
+    walk(Rest);
 walk([{var, {name, _L, Name}, Val} | Rest]) ->
     declare(Name, expr(Val), var),
+    walk(Rest);
+walk([{'=', {kv, Name, Key}, Val} | Rest]) ->
+    {name, _L, N} = Name,
+    kv_update(N, expr(Name), expr(Key), expr(Val)),
     walk(Rest);
 walk([{'=', {name, _L, Name}, Val} | Rest]) ->
     assign(Name, expr(Val)),
@@ -177,7 +184,15 @@ expr({'<', Val1, Val2}) ->
     expr(Val1) < expr(Val2);
 expr({negation, Val}) ->
     negate(expr(Val));
+expr({dict, List}) ->
+    dictionary(List); % Declaration
+expr({kv, Name, Key}) ->
+    keyvalue(expr(Name), expr(Key));
+expr(List) when is_list(List) ->
+    % Arrays
+    eval(List);
 expr(Other) ->
+    % NOTE: This function allows Erlang terms to leak into GDscript if you aren't careful
     Other.
 
 negate(Val) when is_number(Val) ->
@@ -192,6 +207,15 @@ function(Name, Args) ->
         Value ->
             Value
     end.
+
+% Key value access can either be for an array or a dictionary
+% which have slightly diff semantics
+keyvalue(Name, Key) when is_map(Name) ->
+     maps:get(Key, Name);
+keyvalue(Name, Key) when is_list(Name) ->
+     lists:nth(Key + 1, Name). % it seems like Arrays should
+                                     % have their state stored as the
+                                     % resolved variables.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -232,6 +256,34 @@ assign(Name, Val) ->
             % Overwrite the current value
             put_obj(var, Name, Val, Where)
     end.
+
+
+dictionary([]) ->
+    maps:new();
+dictionary(List) ->
+    dictionary(List, maps:new()).
+dictionary([], Map) ->
+    Map;
+dictionary([{kv, {_Type1, _Line1, Key}, Val} |T], Map1) ->
+    Map2 = maps:put(Key, expr(Val), Map1),
+    dictionary(T, Map2).
+
+% Can update either Dicts or Arrays
+kv_update(Name, Map, Key, Val) when is_map(Map) ->
+    % Updating a dictionary
+    Map1 = maps:put(Key, Val, Map),
+    assign(Name, Map1);
+kv_update(Name, List, Key, Val) when is_list(List) ->
+    % TODO: Lists may not be the right way to represent arrays
+    % internally, since updating an element in the middle of a
+    % list isn't that great. 3 operations on the list itself to
+    % generate List1 seems like it would be a performance sap.
+    Index = lists:nth(Key + 1, List),
+    List1 = lists:sublist(List, Index - 1) 
+            ++ [Val] 
+            ++ lists:nthtail(Index,List),
+    assign(Name, List1).
+
 
 % If 'if' or 'elif' evaluate to false, just return. Otherwise if it is true, or
 % the statement is an 'else', process the indented block of statements and
@@ -420,8 +472,9 @@ get_obj(Type, Name, EnvID) when EnvID > 0 ->
 
 % Puts an object into the state table. Does not check scope rules, previous
 % declarations, etc.
-put_obj(Type, Name, Env) ->
-    put_obj(Type, Name, 'Null', Env).
+% UNUSED
+%put_obj(Type, Name, Env) ->
+%    put_obj(Type, Name, 'Null', Env).
 
 put_obj(Type, Name, Val, Env) ->
     State = erlang:get(state),
@@ -467,9 +520,10 @@ decrementLoop() ->
             ok
     end.
 
-getLoop() ->
-    St0 = erlang:get(state),
-    St0#state.curLoop.
+%UNUSED TODO
+%getLoop() ->
+%    St0 = erlang:get(state),
+%    St0#state.curLoop.
 
 removeEnv(Env) ->
     St0 = erlang:get(state),
@@ -498,9 +552,10 @@ getEnv() ->
     St0 = erlang:get(state),
     St0#state.curEnv.
 
-printState() ->
-    St0 = erlang:get(state),
-    io:format("Current state is: ~p~n", [St0]).
+% TODO unused
+%printState() ->
+%    St0 = erlang:get(state),
+%    io:format("Current state is: ~p~n", [St0]).
 
 clearBreaker() ->
     St0 = erlang:get(state),
@@ -612,7 +667,9 @@ setup_function_env([{Arg, Param} | Rest]) ->
     setup_function_env(Rest).
 
 eval(List) when is_list(List) ->
-    eval(List, []).
+    eval(List, []);
+eval(Expr) ->
+    expr(Expr).
 eval([], Acc) ->
     lists:reverse(Acc);
 eval([H|T], Acc) ->
@@ -624,6 +681,11 @@ eval([H|T], Acc) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 builtin_function("print", []) ->
     'Null';
+builtin_function("print", [Head | Rest]) when is_map(Head) ->
+    % Closer to GDScript native formatting, but not quite. TODO replace ','
+    % with ':'
+    console_append(list_to_tuple(maps:to_list(Head))),
+    builtin_function("print", Rest);
 builtin_function("print", [Head | Rest]) ->
     console_append(Head),
     builtin_function("print", Rest);
