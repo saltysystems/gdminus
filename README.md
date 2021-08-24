@@ -126,15 +126,13 @@ the user-defined function table plus any variables defined and so on.
 ```
 
 ### Custom functions
-gdminus allows an application to add custom functions to the function table. For example, here we add an application function, `erf(float)`, representing the [Error function](https://en.wikipedia.org/wiki/Error_function) callable from gdminus:
+gdminus allows an application to add custom functions to the function table. Here we add an application function, `erf(float)` (representing the [Error function](https://en.wikipedia.org/wiki/Error_function)), callable from gdminus:
 ```
 1>  gdminus_int:init().
 ok
 2> F1 = fun([X]) -> math:erf(X) end.
 #Fun<erl_eval.44.40011524>
 3> gdminus_int:insert_function("erf", F1).
-=NOTICE REPORT==== 23-Aug-2021::23:02:22.564094 ===
-Inserted new function #{"erf" => #Fun<erl_eval.44.40011524>}
 ok
 4> gdminus_int:do("print(erf(0.42))").
 {[0.4474676184260253],
