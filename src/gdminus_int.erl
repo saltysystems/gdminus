@@ -40,7 +40,7 @@ parse_file(Path) ->
     Tree.
 
 % Return the standard 3-tuple, plus a map with requested variables.
-do(Stmt,Return) ->
+do(Stmt, Return) ->
     init(),
     {ok, Tokens, _L} = gdminus_scan:string(Stmt),
     % fix up the indents and dedents
@@ -51,6 +51,7 @@ do(Stmt,Return) ->
     Stderr = console_get(stderr),
     R = return(Return),
     {Stdout, Stderr, R, erlang:erase(state)}.
+
 do(Stmt) ->
     init(),
     {ok, Tokens, _L} = gdminus_scan:string(Stmt),
@@ -64,9 +65,10 @@ do(Stmt) ->
 
 return(List) ->
     return(List, maps:new()).
+
 return([], Acc) ->
     Acc;
-return([Key|Rest], Acc0) ->
+return([Key | Rest], Acc0) ->
     % Get the requested variable out of the State
     Value = get_variable(Key),
     Acc1 = maps:put(Key, Value, Acc0),
@@ -177,7 +179,9 @@ expr({name, _L, Variable}) ->
     get_variable(Variable);
 %TODO : Clean this up - it's become very hacky. The parser can't tell the
 %       difference between a class method invocation vs a dictionary acess.
-expr({func_call, {kv, {name, _Line1, Name1}, {string, _Line2, Name2}}, Args}) ->
+expr(
+    {func_call, {kv, {name, _Line1, Name1}, {string, _Line2, Name2}}, Args}
+) ->
     % Will return a value or null if the function is only called for side
     % effects.
     function(Name1 ++ "." ++ Name2, Args);
