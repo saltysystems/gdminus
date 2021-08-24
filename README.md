@@ -76,7 +76,7 @@ Build / Test
 Examples
 -----
 
-## Fibonacci
+### Fibonacci
 Calculate the first 25 [Fibonacci numbers](https://en.wikipedia.org/wiki/Fibonacci_number):
 ```
 func fib(n):
@@ -125,7 +125,7 @@ the user-defined function table plus any variables defined and so on.
   #{},[]}}
 ```
 
-## Custom functions
+### Custom functions
 gdminus allows an application to add custom functions to the function table. For example, here we add an application function, `erf(float)`, representing the [Error function](https://en.wikipedia.org/wiki/Error_function) callable from gdminus:
 ```
 1>  gdminus_int:init().
