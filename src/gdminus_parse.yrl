@@ -90,6 +90,8 @@ unop -> '!' expr : {negation, '$2'}.
 
 uminus -> '-' expr : {negation, '$2'}. 
 
+% This is a bit problematic because it's unclear to the parse if the caller is
+% asking for a dictionary key or a method from a class.
 pname -> name '.' name : {kv, '$1', to_string('$3')}.
 pname -> name '[' expr ']' : {kv, '$1', '$3'}.
 pname -> name : '$1'.
