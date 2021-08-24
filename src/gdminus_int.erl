@@ -671,9 +671,7 @@ local_function(Name, Args) ->
         end,
     Return.
 
-local_function_block(Params, Block, Args) when
-    length(Params) == length(Args)
-->
+local_function_block(Params, Block, Args) when length(Params) == length(Args) ->
     St0 = erlang:get(state),
     Environment = St0#state.curEnv,
     erlang:put(state, St0#state{curEnv = Environment + 1}),
