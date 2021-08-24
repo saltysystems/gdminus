@@ -6,7 +6,7 @@
 % dictionary to process the syntax tree of GDMinus rather than threading the
 % state through every function.
 
--export([file/1, file/2, do/1, tokenize_file/1, parse_file/1]).
+-export([file/1, file/2, do/2, do/1, tokenize_file/1, parse_file/1]).
 
 -record(state, {
     curEnv = 0,
@@ -39,6 +39,18 @@ parse_file(Path) ->
     {ok, Tree} = gdminus_parse:parse(Tokens),
     Tree.
 
+% Return the standard 3-tuple, plus a map with requested variables.
+do(Stmt,Return) ->
+    init(),
+    {ok, Tokens, _L} = gdminus_scan:string(Stmt),
+    % fix up the indents and dedents
+    NormalForm = gdminus_scan:normalize(Tokens),
+    {ok, Tree} = gdminus_parse:parse(NormalForm),
+    walk(Tree),
+    Stdout = console_get(stdout),
+    Stderr = console_get(stderr),
+    R = return(Return),
+    {Stdout, Stderr, R, erlang:erase(state)}.
 do(Stmt) ->
     init(),
     {ok, Tokens, _L} = gdminus_scan:string(Stmt),
@@ -49,6 +61,16 @@ do(Stmt) ->
     Stdout = console_get(stdout),
     Stderr = console_get(stderr),
     {Stdout, Stderr, erlang:erase(state)}.
+
+return(List) ->
+    return(List, maps:new()).
+return([], Acc) ->
+    Acc;
+return([Key|Rest], Acc0) ->
+    % Get the requested variable out of the State
+    Value = get_variable(Key),
+    Acc1 = maps:put(Key, Value, Acc0),
+    return(Rest, Acc1).
 
 % Open a file, walk the tree, nuke the process key in the process dict at the end.
 file(Path) ->
@@ -153,10 +175,9 @@ expr({number, _L, Value}) ->
     Value;
 expr({name, _L, Variable}) ->
     get_variable(Variable);
-%TODO : Try to understand if converting the 2nd arg after the '.' to a string
-%       in the parser is bad for function calls. Might simply be "weird but
-%       harmless"
-expr({func_call, {{name, _Line1, Name1}, {string, _Line2, Name2}}, Args}) ->
+%TODO : Clean this up - it's become very hacky. The parser can't tell the
+%       difference between a class method invocation vs a dictionary acess.
+expr({func_call, {kv, {name, _Line1, Name1}, {string, _Line2, Name2}}, Args}) ->
     % Will return a value or null if the function is only called for side
     % effects.
     function(Name1 ++ "." ++ Name2, Args);
@@ -240,8 +261,7 @@ declare(Name, Val, var) ->
     case get_obj(var, Name, Env) of
         {_, false} ->
             put_obj(var, Name, Val, Env);
-        X ->
-            io:format("Got ~p~n", [X]),
+        _X ->
             throw("Variable already exists in the current scope")
     end;
 declare(Name, Val, func) ->
