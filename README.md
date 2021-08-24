@@ -144,4 +144,4 @@ ok
 
 gdminus functions created this way must return a value. 
 
-gdminus will first evaluate locally defined functions, application functions (such as sha512 in this example), and finally builtin functions (a subset of canonical gdscript functions).
+gdminus will first evaluate locally defined functions, application functions (such as erf/1 in this example), and finally builtin functions (a subset of canonical gdscript functions).
