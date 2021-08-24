@@ -6,13 +6,22 @@
 % dictionary to process the syntax tree of GDMinus rather than threading the
 % state through every function.
 
--export([file/1, file/2, do/2, do/1, tokenize_file/1, parse_file/1]).
+-export([
+    init/0,
+    destroy/0,
+    file/1, file/2,
+    do/2, do/1,
+    insert_function/2,
+    tokenize_file/1,
+    parse_file/1
+]).
 
 -record(state, {
     curEnv = 0,
     curLoop = 0,
     envs = maps:new(),
     breakers = maps:new(),
+    appFuns = maps:new(),
     console = []
 }).
 
@@ -25,7 +34,22 @@
 
 init() ->
     erlang:put(state, #state{}),
-    erlang:put(console, #console{}).
+    erlang:put(console, #console{}),
+    ok.
+
+destroy() ->
+    erlang:erase(state),
+    erlang:erase(console),
+    ok.
+
+insert_function(Name, Fun) ->
+    St0 = erlang:get(state),
+    AppFun0 = St0#state.appFuns,
+    AppFun1 = maps:put(Name, Fun, AppFun0),
+    logger:notice("Inserted new function ~p", [AppFun1]),
+    St1 = St0#state{appFuns = AppFun1},
+    erlang:put(state, St1),
+    ok.
 
 tokenize_file(Path) ->
     {ok, F} = file:read_file(Path),
@@ -41,7 +65,6 @@ parse_file(Path) ->
 
 % Return the standard 3-tuple, plus a map with requested variables.
 do(Stmt, Return) ->
-    init(),
     {ok, Tokens, _L} = gdminus_scan:string(Stmt),
     % fix up the indents and dedents
     NormalForm = gdminus_scan:normalize(Tokens),
@@ -50,10 +73,9 @@ do(Stmt, Return) ->
     Stdout = console_get(stdout),
     Stderr = console_get(stderr),
     R = return(Return),
-    {Stdout, Stderr, R, erlang:erase(state)}.
+    {Stdout, Stderr, R, erlang:get(state)}.
 
 do(Stmt) ->
-    init(),
     {ok, Tokens, _L} = gdminus_scan:string(Stmt),
     % fix up the indents and dedents
     NormalForm = gdminus_scan:normalize(Tokens),
@@ -61,7 +83,7 @@ do(Stmt) ->
     walk(Tree),
     Stdout = console_get(stdout),
     Stderr = console_get(stderr),
-    {Stdout, Stderr, erlang:erase(state)}.
+    {Stdout, Stderr, erlang:get(state)}.
 
 return(List) ->
     return(List, maps:new()).
@@ -74,9 +96,12 @@ return([Key | Rest], Acc0) ->
     Acc1 = maps:put(Key, Value, Acc0),
     return(Rest, Acc1).
 
-% Open a file, walk the tree, nuke the process key in the process dict at the end.
+% Open a file, walk the tree, nuke the state in the process dict at the end.
 file(Path) ->
-    file(Path, default).
+    init(),
+    {StdOut, StdErr, _State} = file(Path, default),
+    destroy(),
+    {StdOut, StdErr}.
 
 file(Path, Opts) when Opts == 'default' ->
     {ok, F} = file:read_file(Path),
@@ -230,8 +255,15 @@ negate(Val) when is_number(Val) ->
 function(Name, Args) ->
     case local_function(Name, Args) of
         undefined ->
-            % Not a built-in, continue from the local function table
-            builtin_function(Name, eval(Args));
+            % Not a built-in, see if it's in the application function table
+            E = eval(Args),
+            case application_function(Name, E) of
+                undefined ->
+                    % Not there either, check if it's a built-in
+                    builtin_function(Name, E);
+                Value ->
+                    Value
+            end;
         Value ->
             Value
     end.
@@ -657,6 +689,16 @@ maybe_break() ->
     Breakers = St0#state.breakers,
     % if no breaker exists, just return false
     maps:get(Loop, Breakers, false).
+
+application_function(Name, Args) ->
+    St0 = erlang:get(state),
+    AppFuns = St0#state.appFuns,
+    case maps:get(Name, AppFuns, undefined) of
+        undefined ->
+            undefined;
+        Fun ->
+            Fun(Args)
+    end.
 
 local_function(Name, Args) ->
     St0 = erlang:get(state),
