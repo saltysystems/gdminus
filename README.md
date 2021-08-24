@@ -75,6 +75,8 @@ Build / Test
     
 Examples
 -----
+
+## Fibonacci
 Calculate the first 25 [Fibonacci numbers](https://en.wikipedia.org/wiki/Fibonacci_number):
 ```
 func fib(n):
@@ -122,3 +124,26 @@ the user-defined function table plus any variables defined and so on.
       #{"end" => 1629431927532,"start" => 1629431926137}}},
   #{},[]}}
 ```
+
+## Custom functions
+gdminus allows an application to add custom functions to the function table. For example, here we add an application function, `erf(float)`, representing the [Error function](https://en.wikipedia.org/wiki/Error_function) callable from gdminus:
+```
+1>  gdminus_int:init().
+ok
+2> F1 = fun([X]) -> math:erf(X) end.
+#Fun<erl_eval.44.40011524>
+3> gdminus_int:insert_function("erf", F1).
+=NOTICE REPORT==== 23-Aug-2021::23:02:22.564094 ===
+Inserted new function #{"erf" => #Fun<erl_eval.44.40011524>}
+ok
+4> gdminus_int:do("print(erf(0.42))").
+{[0.4474676184260253],
+ [],
+  {state,0,0,#{},#{},
+          #{"erf" => #Fun<erl_eval.44.40011524>},
+                  []}}
+```
+
+gdminus functions created this way must return a value. 
+
+gdminus will first evaluate locally defined functions, application functions (such as sha512 in this example), and finally builtin functions (a subset of canonical gdscript functions).
