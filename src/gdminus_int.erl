@@ -1,3 +1,11 @@
+%%%--------------------------------------------------------------------------
+%%% @copyright (C) 2021, Lincoln Bryant
+%%% @doc GDMinus Interpreter.
+%%% @author Lincoln Bryant
+%%% This source code is made available under the Apache License v2.0
+%%% @end
+%%%--------------------------------------------------------------------------
+
 -module(gdminus_int).
 
 % GDMinus Interpreter
@@ -32,16 +40,36 @@
 
 -record(env, {functions = maps:new(), variables = maps:new()}).
 
+%%============================================================================
+%% API functions
+%%============================================================================
+
+-spec init() -> ok.
+%%----------------------------------------------------------------------------
+%% @doc Initialize the state of the interpreter in the process dictionary
+%% @end
+%%----------------------------------------------------------------------------
 init() ->
     erlang:put(state, #state{}),
     erlang:put(console, #console{}),
     ok.
 
+-spec destroy() -> ok.
+%%----------------------------------------------------------------------------
+%% @doc Delete all stateful information in the process dictionary
+%% @end
+%%----------------------------------------------------------------------------
 destroy() ->
     erlang:erase(state),
     erlang:erase(console),
     ok.
 
+-spec insert_function(list(), fun()) -> ok.
+%%----------------------------------------------------------------------------
+%% @doc Insert an function into the GDScript function table. Functions may only
+%%      take a list as an argument.
+%% @end
+%%----------------------------------------------------------------------------
 insert_function(Name, Fun) ->
     St0 = erlang:get(state),
     AppFun0 = St0#state.appFuns,
@@ -51,6 +79,11 @@ insert_function(Name, Fun) ->
     erlang:put(state, St1),
     ok.
 
+-spec scan_file(list()) -> list().
+%%----------------------------------------------------------------------------
+%% @doc Read a file from disk and tokenize it to prepare for parsing.
+%% @end
+%%----------------------------------------------------------------------------
 scan_file(Path) ->
     {ok, F} = file:read_file(Path),
     Fn = binary:bin_to_list(F),
@@ -58,12 +91,26 @@ scan_file(Path) ->
     % Fix up indents/dedents
     gdminus_scan:normalize(Tokens).
 
+-spec parse_file(list()) -> list().
+%%----------------------------------------------------------------------------
+%% @doc Parse a list of tokens into GDScript grammar.
+%% @end
+%%----------------------------------------------------------------------------
 parse_file(Path) ->
     Tokens = scan_file(Path),
     {ok, Tree} = gdminus_parse:parse(Tokens),
     Tree.
 
 % Return the standard 3-tuple, plus a map with requested variables.
+-spec do(list(), map()) -> {list(), list(), map(), tuple()}.
+%%----------------------------------------------------------------------------
+%% @doc Walk the parse tree, evaluating statements and expressions along the
+%%      way. Output from print functions etc returned as lists representing
+%%      Standard Out and Standard Error. A map will be returned with the final
+%%      state of requested variables. Finally the state record itself will be
+%%      returned.
+%% @end
+%%----------------------------------------------------------------------------
 do(Stmt, Return) ->
     {ok, Tokens, _L} = gdminus_scan:string(Stmt),
     % fix up the indents and dedents
@@ -75,6 +122,14 @@ do(Stmt, Return) ->
     R = return(Return),
     {Stdout, Stderr, R, erlang:get(state)}.
 
+-spec do(list()) -> {list(), list(), tuple()}.
+%%----------------------------------------------------------------------------
+%% @doc Walk the parse tree, evaluating statements and expressions along the
+%%      way. Output from print functions etc returned as lists representing
+%%      Standard Out and Standard Error. The state record itself will be
+%%      returned as well.
+%% @end
+%%----------------------------------------------------------------------------
 do(Stmt) ->
     {ok, Tokens, _L} = gdminus_scan:string(Stmt),
     % fix up the indents and dedents
@@ -85,21 +140,21 @@ do(Stmt) ->
     Stderr = console_get(stderr),
     {Stdout, Stderr, erlang:get(state)}.
 
-return(List) ->
-    return(List, maps:new()).
-
-return([], Acc) ->
-    Acc;
-return([Key | Rest], Acc0) ->
-    % Get the requested variable out of the State
-    Value = get_variable(Key),
-    Acc1 = maps:put(Key, Value, Acc0),
-    return(Rest, Acc1).
-
-% Open a file, walk the tree, nuke the state in the process dict at the end.
+%%----------------------------------------------------------------------------
+%% @doc Open a file, tokenize, parse, evaluate, and return the final output to
+%%      the caller.
+%% @end 
+%%----------------------------------------------------------------------------
+-spec file(list()) -> {list(), list()}.
 file(Path) ->
     file(Path, default).
 
+%%----------------------------------------------------------------------------
+%% @doc Open a file, tokenize, parse, evaluate, and return the final output to
+%%      the caller. Optionally return the final state of the program.
+%% @end 
+%%----------------------------------------------------------------------------
+-spec file(list(), atom()) -> {list(), list()} | {list(), list(), tuple()}.
 file(Path, default) ->
     init(),
     {ok, F} = file:read_file(Path),
@@ -116,6 +171,9 @@ file(Path, debug) ->
     {StdOut, StdErr, State}.
 
 
+%%============================================================================
+%% Walking the parse tree
+%%============================================================================
 
 % Walk the tree, evaluating statements and expressions as it goes.
 walk([]) ->
@@ -207,9 +265,9 @@ walk([{match, Expression, Conditions} | Rest]) ->
 walk([{return} | _Rest]) ->
     'Null'.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Expressions                                                                 %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%============================================================================
+%% Expressions
+%%============================================================================
 
 expr({string, _Line, String}) ->
     String;
@@ -291,12 +349,9 @@ keyvalue(Name, Key) when is_list(Name) ->
     % it seems like Arrays should
     lists:nth(Key + 1, Name).
 
-% have their state stored as the
-% resolved variables.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Statements                                                                  %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%============================================================================
+%% Statements
+%%============================================================================
 
 % Declare the variable in the current environment. Behaviour depends on the
 % caller - if called from a variable declaration then it checks for shadowing
@@ -506,9 +561,9 @@ enum([{name, _L, Name}|Tail], N) ->
     declare(Name, N, var),
     enum(Tail, N+1).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Funs for working with the state tree                                        %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%============================================================================
+%% Funs for working with the state tree
+%%============================================================================
 
 % Find an object of a given type in the current scope, recursively traversing
 % upwards through the tree as necessary
@@ -693,6 +748,17 @@ console_get(Channel) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Internal functions                                                          %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+return(List) ->
+    return(List, maps:new()).
+
+return([], Acc) ->
+    Acc;
+return([Key | Rest], Acc0) ->
+    % Get the requested variable out of the State
+    Value = get_variable(Key),
+    Acc1 = maps:put(Key, Value, Acc0),
+    return(Rest, Acc1).
+
 get_variable({name, _L, Var}) ->
     get_variable(Var);
 get_variable(Var) ->
@@ -769,9 +835,9 @@ eval([], Acc) ->
 eval([H | T], Acc) ->
     eval(T, [expr(H) | Acc]).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Built-in functions callable from GDMinus                                    %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%===========================================================================
+%% Built-in functions callable from GDMinus
+%%===========================================================================
 builtin_function("print", []) ->
     'Null';
 builtin_function("print", [Head | Rest]) when is_map(Head) ->
