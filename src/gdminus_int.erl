@@ -12,7 +12,7 @@
     file/1, file/2,
     do/2, do/1,
     insert_function/2,
-    tokenize_file/1,
+    scan_file/1,
     parse_file/1
 ]).
 
@@ -51,7 +51,7 @@ insert_function(Name, Fun) ->
     erlang:put(state, St1),
     ok.
 
-tokenize_file(Path) ->
+scan_file(Path) ->
     {ok, F} = file:read_file(Path),
     Fn = binary:bin_to_list(F),
     {ok, Tokens, _L} = gdminus_scan:string(Fn),
@@ -59,7 +59,7 @@ tokenize_file(Path) ->
     gdminus_scan:normalize(Tokens).
 
 parse_file(Path) ->
-    Tokens = tokenize_file(Path),
+    Tokens = scan_file(Path),
     {ok, Tree} = gdminus_parse:parse(Tokens),
     Tree.
 
@@ -98,15 +98,24 @@ return([Key | Rest], Acc0) ->
 
 % Open a file, walk the tree, nuke the state in the process dict at the end.
 file(Path) ->
-    init(),
-    {StdOut, StdErr, _State} = file(Path, default),
-    destroy(),
-    {StdOut, StdErr}.
+    file(Path, default).
 
-file(Path, Opts) when Opts == 'default' ->
+file(Path, default) ->
+    init(),
     {ok, F} = file:read_file(Path),
     Fn = binary:bin_to_list(F),
-    do(Fn).
+    {StdOut, StdErr, _State} = do(Fn),
+    destroy(),
+    {StdOut, StdErr};
+file(Path, debug) ->
+    init(),
+    {ok, F} = file:read_file(Path),
+    Fn = binary:bin_to_list(F),
+    {StdOut, StdErr, State} = do(Fn),
+    destroy(),
+    {StdOut, StdErr, State}.
+
+
 
 % Walk the tree, evaluating statements and expressions as it goes.
 walk([]) ->
@@ -125,6 +134,12 @@ walk([{Op, _Val1, _Val2} | Rest]) when
 ->
     % Nothing useful from evaluating these nodes since they are just exprs without
     % side-effects
+    walk(Rest);
+walk([{enum, List} | Rest]) ->
+    enum(List),
+    walk(Rest);
+walk([{const, {name, _L1, Name}, {number, _L2, Val}} | Rest]) ->
+    declare(Name, Val, var),
     walk(Rest);
 walk([{var, {name, _L, Name}} | Rest]) ->
     declare(Name, var),
@@ -481,6 +496,15 @@ match(Val, Condition, Block) when Condition == Val ->
     true;
 match(_Val, _Condition, _Block) ->
     false.
+
+% Enums are lists of constants with sequentially increasing value. Iterate through the list, assigning values
+enum(List) ->
+    enum(List, 0).
+enum([], _N) ->
+    ok;
+enum([{name, _L, Name}|Tail], N) ->
+    declare(Name, N, var),
+    enum(Tail, N+1).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Funs for working with the state tree                                        %
