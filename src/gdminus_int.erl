@@ -1,8 +1,13 @@
 %%%--------------------------------------------------------------------------
 %%% @copyright (C) 2021, Lincoln Bryant
 %%% @doc GDMinus Interpreter.
+%%%   This package facilitates interoperability between Godot and Erlang by
+%%%   implementing a subset of the GDScript scripting language as an Erlang
+%%%   module. A subset of the GDScript standard library has been made available
+%%%   as well. Users may additionally define their own functions in Erlang and
+%%%   make them available to GDMinus programs.  This source code is made
+%%%   available under the Apache License v2.0
 %%% @author Lincoln Bryant
-%%% This source code is made available under the Apache License v2.0
 %%% @end
 %%%--------------------------------------------------------------------------
 
@@ -143,7 +148,7 @@ do(Stmt) ->
 %%----------------------------------------------------------------------------
 %% @doc Open a file, tokenize, parse, evaluate, and return the final output to
 %%      the caller.
-%% @end 
+%% @end
 %%----------------------------------------------------------------------------
 -spec file(list()) -> {list(), list()}.
 file(Path) ->
@@ -152,7 +157,7 @@ file(Path) ->
 %%----------------------------------------------------------------------------
 %% @doc Open a file, tokenize, parse, evaluate, and return the final output to
 %%      the caller. Optionally return the final state of the program.
-%% @end 
+%% @end
 %%----------------------------------------------------------------------------
 -spec file(list(), atom()) -> {list(), list()} | {list(), list(), tuple()}.
 file(Path, default) ->
@@ -169,7 +174,6 @@ file(Path, debug) ->
     {StdOut, StdErr, State} = do(Fn),
     destroy(),
     {StdOut, StdErr, State}.
-
 
 %%============================================================================
 %% Walking the parse tree
@@ -555,11 +559,12 @@ match(_Val, _Condition, _Block) ->
 % Enums are lists of constants with sequentially increasing value. Iterate through the list, assigning values
 enum(List) ->
     enum(List, 0).
+
 enum([], _N) ->
     ok;
-enum([{name, _L, Name}|Tail], N) ->
+enum([{name, _L, Name} | Tail], N) ->
     declare(Name, N, var),
-    enum(Tail, N+1).
+    enum(Tail, N + 1).
 
 %%============================================================================
 %% Funs for working with the state tree
