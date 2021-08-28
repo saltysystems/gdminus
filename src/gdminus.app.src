@@ -1,6 +1,6 @@
 {application, gdminus,
- [{description, "An OTP application"},
-  {vsn, "0.1.0"},
+ [{description, "GDScript interpreter for Erlang and Elixir"},
+  {vsn, "1.0.0"},
   {registered, []},
   {mod, {gdminus_app, []}},
   {applications,
@@ -11,5 +11,5 @@
   {modules, []},
 
   {licenses, ["Apache 2.0"]},
-  {links, []}
+  {links, ["Gogs", "http://git.salty.systems/lincolnbryant/gdminus"]}
  ]}.
