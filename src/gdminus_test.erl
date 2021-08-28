@@ -16,8 +16,8 @@ regenerate() ->
 
 test_insert() ->
     gdminus_int:init(),
-    F1 = fun([X]) -> crypto:hash(sha512, X) end,
-    gdminus_int:insert_function("sha512", F1),
-    {Out, _Err, _St} = gdminus_int:do("print(sha512(\"hello world\"))"),
+    F1 = fun([X]) -> math:erf(X) end,
+    gdminus_int:insert_function("erf", F1),
+    {Out, _Err, _St} = gdminus_int:do("print(erf(0.42))"),
     io:format("Output is: ~p~n", [Out]),
     gdminus_int:destroy().
