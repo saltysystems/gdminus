@@ -11,5 +11,5 @@
   {modules, []},
 
   {licenses, ["Apache 2.0"]},
-  {links, ["Gogs", "http://git.salty.systems/lincolnbryant/gdminus"]}
+  {links, [{"Gogs", "http://git.salty.systems/lincolnbryant/gdminus"}]}
  ]}.
