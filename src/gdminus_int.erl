@@ -25,6 +25,7 @@
     file/1, file/2,
     do/2, do/1,
     insert_function/2,
+    insert_dict/2,
     scan_file/1,
     parse_file/1
 ]).
@@ -69,7 +70,7 @@ destroy() ->
     erlang:erase(console),
     ok.
 
--spec insert_function(list(), fun()) -> ok.
+-spec insert_function(string(), fun()) -> ok.
 %%----------------------------------------------------------------------------
 %% @doc Insert an function into the GDScript function table. Functions may only
 %%      take a list as an argument.
@@ -83,6 +84,16 @@ insert_function(Name, Fun) ->
     St1 = St0#state{appFuns = AppFun1},
     erlang:put(state, St1),
     ok.
+
+-spec insert_dict(string(), map()) -> ok.
+%%----------------------------------------------------------------------------
+%% @doc Inject an Erlang map to a GDScript dictionary at the global scope. The
+%%      caller is responsible for ensuring types are GDScript-compatible, e.g.
+%%      no BEAM atoms
+%% @end
+%%----------------------------------------------------------------------------
+insert_dict(Name, Map) -> 
+    global_declare(Name, Map, var).
 
 -spec scan_file(list()) -> list().
 %%----------------------------------------------------------------------------
@@ -378,6 +389,16 @@ declare(Name, Val, func) ->
     State = erlang:get(state),
     Env = State#state.curEnv,
     put_obj(var, Name, Val, Env).
+
+% Special version of declare that always happens at the global scope
+global_declare(Name, Val, var) ->
+    Env = 0,
+    case get_obj(var, Name, Env) of
+        {_, false} ->
+            put_obj(var, Name, Val, Env);
+        _X ->
+            throw("Variable already exists in the current scope")
+    end.
 
 % Assign a value to a variable that exists in the current environment.
 assign(Name, Val) ->
