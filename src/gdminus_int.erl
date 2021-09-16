@@ -293,6 +293,18 @@ expr({name, _L, Variable}) ->
 %TODO : Clean this up - it's become very hacky. The parser can't tell the
 %       difference between a class method invocation vs a dictionary acess.
 expr(
+    {func_call, {kv, {name, _Line1, Name1}, {string, _Line2, "has"}}, Args}
+) ->
+    function("dict_has", [Name1 | Args]);
+expr(
+    {func_call, {kv, {name, _Line1, Name1}, {string, _Line2, "size"}}, Args}
+) ->
+    function("dict_size", [Name1]);
+expr(
+    {func_call, {kv, {name, _Line1, Name1}, {string, _Line2, "empty"}}, Args}
+) ->
+    function("dict_empty", [Name1]);
+expr(
     {func_call, {kv, {name, _Line1, Name1}, {string, _Line2, Name2}}, Args}
 ) ->
     % Will return a value or null if the function is only called for side
@@ -333,7 +345,8 @@ expr(List) when is_list(List) ->
     % Arrays
     eval(List);
 expr(Other) ->
-    % NOTE: This function allows Erlang terms to leak into GDscript if you aren't careful
+    % NOTE: This function allows Erlang terms to leak into GDscript if you
+    %       aren't careful
     Other.
 
 negate(Val) when is_number(Val) ->
@@ -874,6 +887,21 @@ builtin_function("print", [Head | Rest]) when is_map(Head) ->
 builtin_function("print", [Head | Rest]) ->
     console_append(Head),
     builtin_function("print", Rest);
+builtin_function("dict_has", [Dict,Arg]) ->
+    {_, V} = get_obj(var, Dict),
+    case maps:get(Arg, V, false) of
+        false -> false;
+        _ -> true
+    end;
+builtin_function("dict_empty", [Dict]) ->
+    {_, V} = get_obj(var, Dict),
+    case maps:size(V) of
+        0 -> true;
+        _ -> false
+    end;
+builtin_function("dict_size", [Dict]) ->
+    {_, V} = get_obj(var, Dict),
+    maps:size(V);
 builtin_function("OS.get_ticks_msec", []) ->
     erlang:system_time(millisecond);
 builtin_function("OS.get_ticks_usec", []) ->
@@ -933,9 +961,10 @@ builtin_function("tan", [Arg]) ->
     math:tan(Arg);
 builtin_function("tanh", [Arg]) ->
     math:tanh(Arg);
-builtin_function(_, _Args) ->
+builtin_function(Func, _Args) ->
     % Not a built-in function, and presumably the local function call also failed.
-    throw("Function not defined or not implemented").
+    Reason = io_lib:format("Function not defined or not implemented:", Func),
+    throw(Reason).
 
 str(Arg) when is_integer(Arg) ->
     integer_to_list(Arg);

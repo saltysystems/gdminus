@@ -7,6 +7,9 @@ var q = d["A key"]
 print(q)
 d["A key"] = "Another value"
 print(d.Banana)
+print(d.has("Banana"))
+print(d.empty())
+print(d.size())
 
 var a = [1,2,3,4]
 var b = a[0]
