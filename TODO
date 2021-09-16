@@ -1,0 +1,10 @@
+TODO: Want to support multiple levels of dictionary invocation. For example:
+
+ var f = { "1": 2 }
+ var e = { "Foo": f }
+ var g = e["Foo"]
+ print(e["Foo"])
+ print(e["Foo"]["1"])   <---- Unparseable.
+ print(g["1"])
+
+
