@@ -23,6 +23,7 @@ Rules.
 >           : {token, {'>', TokenLine, TokenChars}}.
 \=          : {token, {'=', TokenLine}}.
 \+          : {token, {'+', TokenLine}}.
+\%          : {token, {'%', TokenLine}}.
 \-          : {token, {'-', TokenLine}}.
 \*          : {token, {'*', TokenLine}}.
 \/          : {token, {'/', TokenLine}}.

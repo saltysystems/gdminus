@@ -198,6 +198,7 @@ walk([{Op, _Val1, _Val2} | Rest]) when
     Op == '-';
     Op == '*';
     Op == '/';
+    Op == '%';
     Op == '==';
     Op == '>=';
     Op == '<=';
@@ -297,11 +298,11 @@ expr(
 ) ->
     function("dict_has", [Name1 | Args]);
 expr(
-    {func_call, {kv, {name, _Line1, Name1}, {string, _Line2, "size"}}, Args}
+    {func_call, {kv, {name, _Line1, Name1}, {string, _Line2, "size"}}, _Args}
 ) ->
     function("dict_size", [Name1]);
 expr(
-    {func_call, {kv, {name, _Line1, Name1}, {string, _Line2, "empty"}}, Args}
+    {func_call, {kv, {name, _Line1, Name1}, {string, _Line2, "empty"}}, _Args}
 ) ->
     function("dict_empty", [Name1]);
 expr(
@@ -322,6 +323,8 @@ expr({'/', Val1, Val2}) ->
     expr(Val1) / expr(Val2);
 expr({'*', Val1, Val2}) ->
     expr(Val1) * expr(Val2);
+expr({'%', Val1, Val2}) ->
+    expr(Val1) rem expr(Val2);
 expr({'==', Val1, Val2}) ->
     expr(Val1) == expr(Val2);
 expr({'!=', Val1, Val2}) ->
@@ -946,9 +949,9 @@ builtin_function("randomize", []) ->
     rand:seed(exs1024s),
     'Null';
 builtin_function("range", [Arg]) ->
-    lists:seq(0, Arg - 1);
+    lists:seq(1, trunc(Arg));
 builtin_function("range", [Arg1, Arg2]) ->
-    lists:seq(Arg1, Arg2);
+    lists:seq(trunc(Arg1), trunc(Arg2));
 builtin_function("round", [Arg]) ->
     erlang:round(Arg);
 builtin_function("sin", [Arg]) ->

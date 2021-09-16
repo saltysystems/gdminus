@@ -12,7 +12,7 @@ Block matchStmt matchcondition matchconditions pname
 Terminals 
 number name string
 % Operators
-'+' '-' '*' '/' '(' ')' '='
+'+' '-' '*' '/' '(' ')' '=' '%'
 % Logic
 'false' 'true' '!' 'not' 'is' '==' '>=' '<=' '!=' '>' '<'
 % Keywords
@@ -33,7 +33,7 @@ Rootsymbol Script.
 %TODO
 Right 100 '='.
 Left 300 '+' '-'.
-Left 400 '*' '/'.
+Left 400 '*' '/' '%'.
 Left 500 'is' '==' '<' '>' '<=' '>=' '!='.
 Unary 1000 uminus.
 
@@ -72,6 +72,7 @@ expr -> number : '$1'.
 expr -> '(' expr ')' : '$2'.
 expr -> pname : '$1'.
 expr -> expr '+' expr  : {'+', '$1', '$3'}.
+expr -> expr '%' expr  : {'%', '$1', '$3'}.
 expr -> expr '-' expr  : {'-', '$1', '$3'}.
 expr -> expr '*' expr  : {'*', '$1', '$3'}.
 expr -> expr '/' expr  : {'/', '$1', '$3'}.
