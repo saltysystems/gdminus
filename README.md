@@ -1,8 +1,18 @@
 gdminus
 =====
 
-gdminus is an implementation of GDScript for Erlang, allowing Erlang
-applications to share code with [Godot](https://godotengine.org/). 
+What and why?
+---
+
+gdminus is an implementation of [GDScript](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/gdscript_basics.html)
+for Erlang, allowing Erlang applications to share code with
+[Godot](https://godotengine.org/). 
+
+gdminus is a component of a larger system, Gremlin, that aims to be an 
+Erlang-powered server framework for building scalable multiplayer games.
+
+There may also be some generally useful snippets in this codebase for anyone 
+wanting to build a whitespace-significant language that runs on the BEAM. 
 
 Scope and Plans
 -----
