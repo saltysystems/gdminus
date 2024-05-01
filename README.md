@@ -8,7 +8,7 @@ gdminus is an implementation of [GDScript](https://docs.godotengine.org/en/stabl
 for Erlang, allowing Erlang applications to share code with
 [Godot](https://godotengine.org/). 
 
-gdminus is a component of a larger system, Gremlin, that aims to be an 
+gdminus is a component of a larger system, Overworld, that aims to be an 
 Erlang-powered server framework for building scalable multiplayer games.
 
 There may also be some generally useful snippets in this codebase for anyone 
